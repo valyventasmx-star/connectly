@@ -4,6 +4,13 @@ import { createServer } from 'http';
 import cors from 'cors';
 import { initSocket } from './services/socket';
 
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION:', err);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION:', reason);
+});
+
 import authRoutes from './routes/auth';
 import workspaceRoutes from './routes/workspaces';
 import channelRoutes from './routes/channels';
