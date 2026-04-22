@@ -32,7 +32,7 @@ export default function Billing() {
   const [portalLoading, setPortalLoading] = useState(false);
 
   useEffect(() => {
-    api.get('/workspaces/plans').then(({ data }) => setPlans(data)).catch(console.error);
+    api.get('/billing/plans').then(({ data }) => setPlans(data)).catch(console.error);
   }, []);
 
   const currentPlan = currentWorkspace?.plan || 'free';
