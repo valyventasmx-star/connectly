@@ -1,0 +1,158 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = env("DATABASE_PROVIDER")
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  avatar    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  workspaceMembers WorkspaceMember[]
+  assignedConversations Conversation[] @relation("AssignedTo")
+}
+
+model Workspace {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  avatar      String?
+  timezone    String   @default("UTC")
+  plan        String   @default("free")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members       WorkspaceMember[]
+  channels      Channel[]
+  contacts      Contact[]
+  conversations Conversation[]
+  tags          Tag[]
+}
+
+model WorkspaceMember {
+  id          String   @id @default(cuid())
+  role        String   @default("agent")
+  userId      String
+  workspaceId String
+  createdAt   DateTime @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+}
+
+model Channel {
+  id                 String   @id @default(cuid())
+  name               String
+  type               String   @default("whatsapp")
+  phoneNumber        String?
+  phoneNumberId      String?
+  wabaId             String?
+  accessToken        String?
+  webhookVerifyToken String?
+  status             String   @default("pending")
+  workspaceId        String
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+}
+
+model Contact {
+  id          String   @id @default(cuid())
+  name        String
+  phone       String?
+  email       String?
+  avatar      String?
+  company     String?
+  notes       String?
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations Conversation[]
+  contactTags   ContactTag[]
+}
+
+model Tag {
+  id          String   @id @default(cuid())
+  name        String
+  color       String   @default("#6366f1")
+  workspaceId String
+  createdAt   DateTime @default(now())
+
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contactTags ContactTag[]
+  conversationTags ConversationTag[]
+
+  @@unique([name, workspaceId])
+}
+
+model ContactTag {
+  contactId String
+  tagId     String
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([contactId, tagId])
+}
+
+model ConversationTag {
+  conversationId String
+  tagId          String
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  tag          Tag          @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, tagId])
+}
+
+model Conversation {
+  id            String    @id @default(cuid())
+  status        String    @default("open")
+  contactId     String
+  channelId     String
+  workspaceId   String
+  assigneeId    String?
+  lastMessageAt DateTime?
+  unreadCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  contact  Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel  Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignee User?    @relation("AssignedTo", fields: [assigneeId], references: [id])
+  messages Message[]
+  conversationTags ConversationTag[]
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  content        String
+  type           String   @default("text")
+  direction      String
+  status         String   @default("sent")
+  waMessageId    String?
+  mediaUrl       String?
+  mediaType      String?
+  conversationId String
+  senderId       String?
+  senderName     String?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}

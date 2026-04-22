@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    @apply font-sans antialiased bg-gray-50 text-gray-900;
+    margin: 0;
+    padding: 0;
+  }
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+}
+
+@layer components {
+  .sidebar-icon {
+    @apply flex items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:text-white hover:bg-sidebar-hover transition-all duration-150 cursor-pointer;
+  }
+  .sidebar-icon.active {
+    @apply text-white bg-primary-600;
+  }
+  .conversation-item {
+    @apply flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 transition-colors;
+  }
+  .conversation-item.active {
+    @apply bg-primary-50 border-l-2 border-l-primary-500;
+  }
+  .message-bubble-out {
+    @apply bg-primary-600 text-white rounded-2xl rounded-br-sm px-4 py-2 max-w-sm;
+  }
+  .message-bubble-in {
+    @apply bg-white text-gray-900 rounded-2xl rounded-bl-sm px-4 py-2 max-w-sm shadow-sm border border-gray-100;
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.15s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}

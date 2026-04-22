@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(export PATH=\"/opt/homebrew/bin:/usr/local/bin:$PATH\")",
+      "Bash(/usr/bin/which python3 *)",
+      "Read(//opt/homebrew/bin/**)",
+      "Read(//usr/local/bin/**)",
+      "Read(//Users/armanddebrignac/.nvm/versions/**)",
+      "Bash(/opt/pkg/env/active/bin/node --version)",
+      "Bash(brew list *)",
+      "Read(//Users/armanddebrignac/**)",
+      "Read(//opt/**)",
+      "Bash(/usr/local/bin/brew --version)",
+      "Bash(/opt/homebrew/bin/brew --version)",
+      "Bash(chmod +x /Users/armanddebrignac/Desktop/app/setup.sh /Users/armanddebrignac/Desktop/app/start.sh)"
+    ]
+  }
+}

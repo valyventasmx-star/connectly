@@ -1,0 +1,11 @@
+{
+  "name": "connectly",
+  "version": "1.0.0",
+  "description": "WhatsApp multi-tenant messaging platform",
+  "scripts": {
+    "setup": "bash setup.sh",
+    "start": "bash start.sh",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev"
+  }
+}
