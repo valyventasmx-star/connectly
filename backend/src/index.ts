@@ -58,7 +58,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Da
 initSocket(httpServer);
 
 const PORT = parseInt(process.env.PORT || '3001');
-httpServer.listen(PORT, () => {
-  console.log(`\n🚀 Connectly backend running on http://localhost:${PORT}`);
+httpServer.listen(PORT, '0.0.0.0', () => {
+  console.log(`\n🚀 Connectly backend running on http://0.0.0.0:${PORT}`);
   console.log(`📡 WebSocket server ready\n`);
 });
