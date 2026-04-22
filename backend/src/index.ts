@@ -12,14 +12,29 @@ import conversationRoutes from './routes/conversations';
 import messageRoutes from './routes/messages';
 import tagRoutes from './routes/tags';
 import webhookRoutes from './routes/webhooks';
+import billingRoutes from './routes/billing';
+import aiRoutes from './routes/ai';
+import analyticsRoutes from './routes/analytics';
+import adminRoutes from './routes/admin';
 
 const app = express();
 const httpServer = createServer(app);
 
+const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',');
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.some(o => origin.startsWith(o))) {
+      callback(null, true);
+    } else {
+      callback(null, true); // permissive for now
+    }
+  },
   credentials: true,
 }));
+
+// Stripe webhook needs raw body
+app.use('/api/billing/stripe-webhook', express.raw({ type: 'application/json' }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -31,16 +46,19 @@ app.use('/api/workspaces/:workspaceId/contacts', contactRoutes);
 app.use('/api/workspaces/:workspaceId/conversations', conversationRoutes);
 app.use('/api/workspaces/:workspaceId/conversations', messageRoutes);
 app.use('/api/workspaces/:workspaceId/tags', tagRoutes);
+app.use('/api/workspaces/:workspaceId', analyticsRoutes);
+app.use('/api/workspaces/:workspaceId', aiRoutes);
+app.use('/api/workspaces', billingRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/webhooks', webhookRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
-// Init Socket.io
 initSocket(httpServer);
 
 const PORT = parseInt(process.env.PORT || '3001');
 httpServer.listen(PORT, () => {
   console.log(`\n🚀 Connectly backend running on http://localhost:${PORT}`);
-  console.log(`📡 WebSocket server ready`);
-  console.log(`🗄️  Database: SQLite (./prisma/dev.db)\n`);
+  console.log(`📡 WebSocket server ready\n`);
 });

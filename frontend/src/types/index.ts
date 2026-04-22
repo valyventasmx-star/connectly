@@ -3,6 +3,7 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
+  isAdmin?: boolean;
   createdAt?: string;
 }
 
@@ -15,6 +16,8 @@ export interface Workspace {
   plan: string;
   timezone: string;
   role?: string;
+  aiEnabled?: boolean;
+  stripeSubscriptionId?: string;
   createdAt: string;
   _count?: { channels: number; contacts: number; conversations: number; members?: number };
 }

@@ -7,6 +7,10 @@ import {
   Cog6ToothIcon,
   ArrowRightOnRectangleIcon,
   ChatBubbleLeftRightIcon,
+  ChartBarIcon,
+  CreditCardIcon,
+  SparklesIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -17,6 +21,7 @@ const navItems = [
   { to: '/inbox', icon: InboxIcon, label: 'Inbox' },
   { to: '/contacts', icon: UserGroupIcon, label: 'Contacts' },
   { to: '/channels', icon: PhoneIcon, label: 'Channels' },
+  { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
   { to: '/workspaces', icon: BuildingOfficeIcon, label: 'Workspaces' },
 ];
 
@@ -57,6 +62,17 @@ export default function Sidebar() {
 
         {/* Bottom actions */}
         <div className="flex flex-col gap-1">
+          <NavLink to="/ai-settings" title="AI Settings" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
+            <SparklesIcon className="w-5 h-5" />
+          </NavLink>
+          <NavLink to="/billing" title="Billing" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
+            <CreditCardIcon className="w-5 h-5" />
+          </NavLink>
+          {user?.isAdmin && (
+            <NavLink to="/admin" title="Admin" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
+              <ShieldCheckIcon className="w-5 h-5" />
+            </NavLink>
+          )}
           <NavLink to="/settings" title="Settings" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
             <Cog6ToothIcon className="w-5 h-5" />
           </NavLink>

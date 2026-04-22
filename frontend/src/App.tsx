@@ -7,6 +7,11 @@ import Contacts from './pages/Contacts';
 import Channels from './pages/Channels';
 import Workspaces from './pages/Workspaces';
 import Settings from './pages/Settings';
+import Analytics from './pages/Analytics';
+import Billing from './pages/Billing';
+import AISettings from './pages/AISettings';
+import Admin from './pages/Admin';
+import Legal from './pages/Legal';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -29,6 +34,11 @@ export default function App() {
         <Route path="/channels" element={<ProtectedRoute><Channels /></ProtectedRoute>} />
         <Route path="/workspaces" element={<ProtectedRoute><Workspaces /></ProtectedRoute>} />
         <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+        <Route path="/analytics" element={<ProtectedRoute><Analytics /></ProtectedRoute>} />
+        <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+        <Route path="/ai-settings" element={<ProtectedRoute><AISettings /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
+        <Route path="/legal" element={<Legal />} />
         <Route path="*" element={<Navigate to="/inbox" replace />} />
       </Routes>
     </BrowserRouter>
