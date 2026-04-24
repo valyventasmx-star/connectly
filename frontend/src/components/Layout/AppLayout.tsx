@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
 import { authApi, workspacesApi } from '../../api/client';
 import { useSocket } from '../../hooks/useSocket';
+import SearchModal from '../Search/SearchModal';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -47,6 +48,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <main className="flex-1 overflow-hidden flex flex-col">
         {children}
       </main>
+      <SearchModal />
     </div>
   );
 }

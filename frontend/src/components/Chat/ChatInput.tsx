@@ -1,17 +1,25 @@
 import { useState, useRef, KeyboardEvent, useEffect } from 'react';
-import { PaperAirplaneIcon, FaceSmileIcon, PaperClipIcon, BoltIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import {
+  PaperAirplaneIcon,
+  FaceSmileIcon,
+  PaperClipIcon,
+  BoltIcon,
+  MagnifyingGlassIcon,
+  LockClosedIcon,
+} from '@heroicons/react/24/outline';
 import { savedResponsesApi } from '../../api/client';
 import { useWorkspaceStore } from '../../store/workspace';
 import { SavedResponse } from '../../types';
 
 interface Props {
-  onSend: (content: string) => Promise<void>;
+  onSend: (content: string, isNote?: boolean) => Promise<void>;
   disabled?: boolean;
 }
 
 export default function ChatInput({ onSend, disabled }: Props) {
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
+  const [noteMode, setNoteMode] = useState(false);
   const [showQuickReplies, setShowQuickReplies] = useState(false);
   const [quickReplies, setQuickReplies] = useState<SavedResponse[]>([]);
   const [qrSearch, setQrSearch] = useState('');
@@ -20,7 +28,6 @@ export default function ChatInput({ onSend, disabled }: Props) {
   const popoverRef = useRef<HTMLDivElement>(null);
   const { currentWorkspace } = useWorkspaceStore();
 
-  // Close popover on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
@@ -70,11 +77,9 @@ export default function ChatInput({ onSend, disabled }: Props) {
     if (!text || sending || disabled) return;
     setSending(true);
     setContent('');
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-    }
+    if (textareaRef.current) textareaRef.current.style.height = 'auto';
     try {
-      await onSend(text);
+      await onSend(text, noteMode);
     } finally {
       setSending(false);
       textareaRef.current?.focus();
@@ -95,9 +100,26 @@ export default function ChatInput({ onSend, disabled }: Props) {
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
   };
 
+  const isNote = noteMode;
+  const borderClass = isNote ? 'border-amber-300 bg-amber-50' : 'border-gray-200 bg-gray-50';
+
   return (
     <div className="border-t border-gray-100 bg-white px-4 py-3">
-      <div className="flex items-end gap-3 bg-gray-50 rounded-xl border border-gray-200 px-4 py-3">
+      {/* Note mode banner */}
+      {isNote && (
+        <div className="flex items-center gap-2 mb-2 px-1">
+          <LockClosedIcon className="w-3.5 h-3.5 text-amber-500" />
+          <span className="text-xs font-medium text-amber-600">Internal note — only visible to your team</span>
+          <button
+            onClick={() => setNoteMode(false)}
+            className="ml-auto text-xs text-amber-500 hover:text-amber-700 underline"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      <div className={`flex items-end gap-3 rounded-xl border px-4 py-3 transition-colors ${borderClass}`}>
         <div className="flex gap-2 pb-0.5 relative" ref={popoverRef}>
           <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Attach file">
             <PaperClipIcon className="w-5 h-5" />
@@ -105,14 +127,23 @@ export default function ChatInput({ onSend, disabled }: Props) {
           <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Emoji">
             <FaceSmileIcon className="w-5 h-5" />
           </button>
-          {/* Quick replies button */}
+          {/* Quick replies */}
           <button
             onClick={openQuickReplies}
-            disabled={disabled}
+            disabled={disabled || isNote}
             className="text-gray-400 hover:text-primary-600 transition-colors disabled:opacity-40"
             title="Quick replies"
           >
             <BoltIcon className="w-5 h-5" />
+          </button>
+          {/* Note mode toggle */}
+          <button
+            onClick={() => setNoteMode((v) => !v)}
+            disabled={disabled}
+            title="Add internal note"
+            className={`transition-colors disabled:opacity-40 ${isNote ? 'text-amber-500' : 'text-gray-400 hover:text-amber-500'}`}
+          >
+            <LockClosedIcon className="w-5 h-5" />
           </button>
 
           {/* Quick replies popover */}
@@ -173,7 +204,11 @@ export default function ChatInput({ onSend, disabled }: Props) {
           value={content}
           onChange={handleChange}
           onKeyDown={handleKeyDown}
-          placeholder={disabled ? 'Select a conversation to start messaging...' : 'Type a message... (Enter to send, Shift+Enter for new line)'}
+          placeholder={
+            disabled ? 'Select a conversation to start messaging...' :
+            isNote ? 'Write an internal note visible only to your team...' :
+            'Type a message... (Enter to send, Shift+Enter for new line)'
+          }
           disabled={disabled || sending}
           rows={1}
           className="flex-1 bg-transparent resize-none text-sm text-gray-900 placeholder-gray-400 focus:outline-none max-h-[120px] overflow-y-auto"
@@ -182,7 +217,9 @@ export default function ChatInput({ onSend, disabled }: Props) {
         <button
           onClick={handleSend}
           disabled={!content.trim() || sending || disabled}
-          className="flex-shrink-0 w-8 h-8 flex items-center justify-center bg-primary-600 hover:bg-primary-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all"
+          className={`flex-shrink-0 w-8 h-8 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all ${
+            isNote ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'
+          }`}
         >
           {sending ? (
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -191,7 +228,9 @@ export default function ChatInput({ onSend, disabled }: Props) {
           )}
         </button>
       </div>
-      <p className="text-[10px] text-gray-400 mt-1.5 text-center">Press Enter to send · Shift+Enter for new line · ⚡ for quick replies</p>
+      <p className="text-[10px] text-gray-400 mt-1.5 text-center">
+        Enter to send · Shift+Enter new line · ⚡ quick replies · 🔒 internal note
+      </p>
     </div>
   );
 }

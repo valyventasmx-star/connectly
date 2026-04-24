@@ -6,6 +6,28 @@ import { Message, Conversation } from '../types';
 
 let socketInstance: Socket | null = null;
 
+// Request browser notification permission on first use
+function requestNotificationPermission() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function showBrowserNotification(title: string, body: string) {
+  if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
+    const n = new Notification(title, {
+      body,
+      icon: '/vite.svg',
+      badge: '/vite.svg',
+      tag: 'connectly-message', // replaces previous notification instead of stacking
+    });
+    n.onclick = () => {
+      window.focus();
+      n.close();
+    };
+  }
+}
+
 export function useSocket() {
   const { token } = useAuthStore();
   const { currentWorkspace, updateConversation, activeConversation } = useWorkspaceStore();
@@ -14,6 +36,8 @@ export function useSocket() {
   useEffect(() => {
     if (!token || initialized.current) return;
     initialized.current = true;
+
+    requestNotificationPermission();
 
     socketInstance = io('/', {
       auth: { token },
@@ -42,15 +66,24 @@ export function useSocket() {
     socketInstance.emit('join_workspace', currentWorkspace.id);
 
     const handleNewMessage = (data: { conversationId: string; message: Message; conversation?: Partial<Conversation> }) => {
-      useWorkspaceStore.getState().updateConversation({
+      const state = useWorkspaceStore.getState();
+
+      state.updateConversation({
         id: data.conversationId,
         lastMessageAt: data.message.createdAt,
         messages: [data.message],
         ...(data.conversation || {}),
       });
 
-      if (activeConversation?.id === data.conversationId) {
+      if (state.activeConversation?.id === data.conversationId) {
         window.dispatchEvent(new CustomEvent('new_message', { detail: data.message }));
+      }
+
+      // Browser notification for inbound messages from other contacts
+      if (data.message.direction === 'inbound' && !data.message.isNote) {
+        const conv = state.conversations.find(c => c.id === data.conversationId);
+        const contactName = conv?.contact?.name || 'New message';
+        showBrowserNotification(contactName, data.message.content);
       }
     };
 

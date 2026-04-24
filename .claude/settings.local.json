@@ -13,7 +13,11 @@
       "Read(//opt/**)",
       "Bash(/usr/local/bin/brew --version)",
       "Bash(/opt/homebrew/bin/brew --version)",
-      "Bash(chmod +x /Users/armanddebrignac/Desktop/app/setup.sh /Users/armanddebrignac/Desktop/app/start.sh)"
+      "Bash(chmod +x /Users/armanddebrignac/Desktop/app/setup.sh /Users/armanddebrignac/Desktop/app/start.sh)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:MkvMHdSLSIxqLJLVCFTOJIbuCaGjjOrl@switchback.proxy.rlwy.net:44983/railway\" npx prisma db push)"
     ]
   }
 }

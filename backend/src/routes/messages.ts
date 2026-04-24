@@ -38,7 +38,7 @@ router.get('/:conversationId/messages', async (req: AuthRequest, res: Response) 
 
 // Send message
 router.post('/:conversationId/messages', async (req: AuthRequest, res: Response) => {
-  const { content, type = 'text' } = req.body;
+  const { content, type = 'text', isNote = false } = req.body;
   if (!content) return res.status(400).json({ error: 'Content is required' });
 
   const conv = await prisma.conversation.findFirst({
@@ -49,8 +49,8 @@ router.post('/:conversationId/messages', async (req: AuthRequest, res: Response)
 
   let waMessageId: string | undefined;
 
-  // Try to send via WhatsApp if channel is connected
-  if (conv.channel.status === 'connected' && conv.channel.accessToken && conv.channel.phoneNumberId && conv.contact.phone) {
+  // Notes are internal only — never send to WhatsApp
+  if (!isNote && conv.channel.status === 'connected' && conv.channel.accessToken && conv.channel.phoneNumberId && conv.contact.phone) {
     try {
       const result = await sendWhatsAppMessage(
         conv.channel.accessToken,
@@ -62,7 +62,6 @@ router.post('/:conversationId/messages', async (req: AuthRequest, res: Response)
       waMessageId = result.messages?.[0]?.id;
     } catch (err: any) {
       console.error('WhatsApp send error:', err.response?.data || err.message);
-      // Still save message even if WA send fails
     }
   }
 
@@ -71,8 +70,9 @@ router.post('/:conversationId/messages', async (req: AuthRequest, res: Response)
       content,
       type,
       direction: 'outbound',
-      status: waMessageId ? 'sent' : 'pending',
+      status: isNote ? 'sent' : (waMessageId ? 'sent' : 'pending'),
       waMessageId,
+      isNote: Boolean(isNote),
       conversationId: conv.id,
       senderId: req.user!.id,
       senderName: req.user!.name,

@@ -27,6 +27,7 @@ import broadcastRoutes from './routes/broadcasts';
 import reportsRoutes from './routes/reports';
 import savedResponsesRoutes from './routes/savedResponses';
 import contactActivityRoutes from './routes/contactActivity';
+import searchRoutes from './routes/search';
 
 const app = express();
 const httpServer = createServer(app);
@@ -63,6 +64,7 @@ app.use('/api/workspaces/:workspaceId/broadcasts', broadcastRoutes);
 app.use('/api/workspaces/:workspaceId/reports', reportsRoutes);
 app.use('/api/workspaces/:workspaceId/saved-responses', savedResponsesRoutes);
 app.use('/api/workspaces/:workspaceId/contacts', contactActivityRoutes);
+app.use('/api/workspaces/:workspaceId/search', searchRoutes);
 app.use('/api/workspaces', billingRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/admin', adminRoutes);

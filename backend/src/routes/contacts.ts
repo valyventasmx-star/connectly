@@ -58,6 +58,49 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   res.status(201).json(contact);
 });
 
+// Import contacts from CSV (body: { csv: string })
+router.post('/import', async (req: AuthRequest, res: Response) => {
+  const { csv } = req.body;
+  if (!csv) return res.status(400).json({ error: 'csv field is required' });
+
+  const lines = csv.split('\n').map((l: string) => l.trim()).filter(Boolean);
+  if (lines.length < 2) return res.status(400).json({ error: 'CSV must have a header row and at least one data row' });
+
+  // Parse header
+  const header = lines[0].split(',').map((h: string) => h.trim().toLowerCase().replace(/[^a-z]/g, ''));
+  const idx = (name: string) => header.indexOf(name);
+
+  const nameIdx = idx('name');
+  if (nameIdx === -1) return res.status(400).json({ error: 'CSV must have a "name" column' });
+
+  const rows = lines.slice(1);
+  let created = 0;
+  let skipped = 0;
+
+  for (const row of rows) {
+    // Handle quoted fields simply
+    const cols = row.split(',').map((c: string) => c.trim().replace(/^"|"$/g, ''));
+    const name = cols[nameIdx];
+    if (!name) { skipped++; continue; }
+
+    const phone = idx('phone') !== -1 ? cols[idx('phone')] || undefined : undefined;
+    const email = idx('email') !== -1 ? cols[idx('email')] || undefined : undefined;
+    const company = idx('company') !== -1 ? cols[idx('company')] || undefined : undefined;
+    const notes = idx('notes') !== -1 ? cols[idx('notes')] || undefined : undefined;
+
+    try {
+      await prisma.contact.create({
+        data: { name, phone, email, company, notes, workspaceId: req.params.workspaceId },
+      });
+      created++;
+    } catch {
+      skipped++;
+    }
+  }
+
+  res.json({ created, skipped, total: rows.length });
+});
+
 // Get contact
 router.get('/:contactId', async (req: AuthRequest, res: Response) => {
   const contact = await prisma.contact.findFirst({

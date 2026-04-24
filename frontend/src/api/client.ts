@@ -88,8 +88,14 @@ export const conversationsApi = {
 export const messagesApi = {
   list: (workspaceId: string, conversationId: string, params?: any) =>
     api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/messages`, { params }),
-  send: (workspaceId: string, conversationId: string, content: string, type?: string) =>
-    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/messages`, { content, type }),
+  send: (workspaceId: string, conversationId: string, content: string, type?: string, isNote?: boolean) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/messages`, { content, type, isNote }),
+};
+
+// Search
+export const searchApi = {
+  search: (workspaceId: string, q: string) =>
+    api.get(`/workspaces/${workspaceId}/search`, { params: { q } }),
 };
 
 // Tags

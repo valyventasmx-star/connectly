@@ -59,9 +59,9 @@ export default function ChatArea({ conversation }: Props) {
     }, 50);
   };
 
-  const handleSend = async (content: string) => {
+  const handleSend = async (content: string, isNote = false) => {
     if (!currentWorkspace) return;
-    const { data } = await messagesApi.send(currentWorkspace.id, conversation.id, content);
+    const { data } = await messagesApi.send(currentWorkspace.id, conversation.id, content, undefined, isNote);
     setMessages((prev) => [...prev, data]);
     scrollToBottom();
   };

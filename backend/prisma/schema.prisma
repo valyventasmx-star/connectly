@@ -216,6 +216,7 @@ model Message {
   mediaUrl       String?
   mediaType      String?
   isAiReply      Boolean  @default(false)
+  isNote         Boolean  @default(false)
   conversationId String
   senderId       String?
   senderName     String?

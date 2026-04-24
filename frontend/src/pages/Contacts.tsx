@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
 import { contactsApi } from '../api/client';
+import api from '../api/client';
 import { Contact } from '../types';
 import Avatar from '../components/ui/Avatar';
 import Button from '../components/ui/Button';
@@ -18,6 +19,8 @@ import {
   PencilIcon,
   TrashIcon,
   UserGroupIcon,
+  ArrowUpTrayIcon,
+  ArrowDownTrayIcon,
 } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -34,6 +37,11 @@ export default function Contacts() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [selected, setSelected] = useState<Contact | null>(null);
+
+  // CSV import state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(null);
 
   useEffect(() => {
     if (currentWorkspace) load();
@@ -52,7 +60,11 @@ export default function Contacts() {
   };
 
   const openCreate = () => { setEditing(null); setForm(EMPTY_FORM); setShowForm(true); };
-  const openEdit = (c: Contact) => { setEditing(c); setForm({ name: c.name, phone: c.phone || '', email: c.email || '', company: c.company || '', notes: c.notes || '' }); setShowForm(true); };
+  const openEdit = (c: Contact) => {
+    setEditing(c);
+    setForm({ name: c.name, phone: c.phone || '', email: c.email || '', company: c.company || '', notes: c.notes || '' });
+    setShowForm(true);
+  };
 
   const handleSave = async () => {
     if (!currentWorkspace || !form.name) return;
@@ -83,6 +95,35 @@ export default function Contacts() {
     if (selected?.id === c.id) setSelected(null);
   };
 
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentWorkspace) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const csv = await file.text();
+      const { data } = await api.post(`/workspaces/${currentWorkspace.id}/contacts/import`, { csv });
+      setImportResult({ created: data.created, skipped: data.skipped });
+      load(); // reload list
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Import failed');
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const downloadTemplate = () => {
+    const csv = 'name,phone,email,company,notes\nJohn Smith,+1 555 000 0001,john@example.com,Acme Corp,VIP customer\nJane Doe,+1 555 000 0002,jane@example.com,,';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'contacts_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const f = (k: keyof typeof EMPTY_FORM) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((prev) => ({ ...prev, [k]: e.target.value }));
 
@@ -97,9 +138,42 @@ export default function Contacts() {
               <h1 className="text-lg font-semibold text-gray-900">Contacts</h1>
               <p className="text-sm text-gray-500">{total} total contacts</p>
             </div>
-            <Button icon={<PlusIcon className="w-4 h-4" />} onClick={openCreate}>
-              Add Contact
-            </Button>
+            <div className="flex items-center gap-2">
+              {/* Import result toast */}
+              {importResult && (
+                <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
+                  ✅ {importResult.created} imported, {importResult.skipped} skipped
+                </span>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                className="hidden"
+                onChange={handleImport}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                icon={<ArrowDownTrayIcon className="w-4 h-4" />}
+                onClick={downloadTemplate}
+                title="Download CSV template"
+              >
+                Template
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={importing ? undefined : <ArrowUpTrayIcon className="w-4 h-4" />}
+                loading={importing}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Import CSV
+              </Button>
+              <Button icon={<PlusIcon className="w-4 h-4" />} onClick={openCreate}>
+                Add Contact
+              </Button>
+            </div>
           </div>
 
           {/* Search */}
@@ -125,7 +199,7 @@ export default function Contacts() {
               <EmptyState
                 icon={<UserGroupIcon className="w-8 h-8" />}
                 title="No contacts yet"
-                description="Add your first contact to get started"
+                description="Add your first contact or import from a CSV file"
                 action={<Button icon={<PlusIcon className="w-4 h-4" />} onClick={openCreate}>Add Contact</Button>}
               />
             ) : (
@@ -157,7 +231,7 @@ export default function Contacts() {
                         {formatDistanceToNow(new Date(c.createdAt), { addSuffix: true })}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                        <div className="flex items-center gap-1">
                           <button onClick={(e) => { e.stopPropagation(); openEdit(c); }} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-gray-600">
                             <PencilIcon className="w-4 h-4" />
                           </button>

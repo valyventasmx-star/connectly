@@ -65,6 +65,8 @@ export interface Message {
   direction: 'inbound' | 'outbound';
   status: 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
   waMessageId?: string;
+  isNote?: boolean;
+  isAiReply?: boolean;
   conversationId: string;
   senderId?: string;
   senderName?: string;

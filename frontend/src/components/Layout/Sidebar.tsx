@@ -13,6 +13,7 @@ import {
   ShieldCheckIcon,
   MegaphoneIcon,
   DocumentChartBarIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -39,14 +40,27 @@ export default function Sidebar() {
     navigate('/login');
   };
 
+  const openSearch = () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
+  };
+
   return (
     <div className="flex h-full">
       {/* Icon rail */}
       <div className="w-16 bg-sidebar-bg flex flex-col items-center py-4 gap-1 border-r border-sidebar-border flex-shrink-0">
         {/* Logo */}
-        <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center mb-4 flex-shrink-0">
+        <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center mb-2 flex-shrink-0">
           <ChatBubbleLeftRightIcon className="w-6 h-6 text-white" />
         </div>
+
+        {/* Search button */}
+        <button
+          onClick={openSearch}
+          title="Search (⌘K)"
+          className="sidebar-icon mb-2"
+        >
+          <MagnifyingGlassIcon className="w-5 h-5" />
+        </button>
 
         {/* Nav items */}
         <nav className="flex-1 flex flex-col gap-1">
