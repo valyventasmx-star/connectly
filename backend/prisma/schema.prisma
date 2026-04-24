@@ -37,12 +37,13 @@ model Workspace {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  members       WorkspaceMember[]
-  channels      Channel[]
-  contacts      Contact[]
-  conversations Conversation[]
-  tags          Tag[]
-  broadcasts    Broadcast[]
+  members        WorkspaceMember[]
+  channels       Channel[]
+  contacts       Contact[]
+  conversations  Conversation[]
+  tags           Tag[]
+  broadcasts     Broadcast[]
+  savedResponses SavedResponse[]
 }
 
 
@@ -120,10 +121,11 @@ model Contact {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  conversations      Conversation[]
-  contactTags        ContactTag[]
+  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations       Conversation[]
+  contactTags         ContactTag[]
   broadcastRecipients BroadcastRecipient[]
+  activities          ContactActivity[]
 }
 
 model Tag {
@@ -178,6 +180,30 @@ model Conversation {
   assignee         User?             @relation("AssignedTo", fields: [assigneeId], references: [id])
   messages         Message[]
   conversationTags ConversationTag[]
+}
+
+model SavedResponse {
+  id          String   @id @default(cuid())
+  title       String
+  content     String
+  category    String?
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ContactActivity {
+  id          String   @id @default(cuid())
+  type        String   // message_sent, message_received, status_changed, note_added, tag_added, lifecycle_changed, assigned
+  description String
+  contactId   String
+  workspaceId String
+  metadata    String?  // JSON string for extra data
+  createdAt   DateTime @default(now())
+
+  contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
 }
 
 model Message {

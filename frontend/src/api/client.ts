@@ -103,4 +103,24 @@ export const tagsApi = {
     api.delete(`/workspaces/${workspaceId}/tags/${tagId}`),
 };
 
+// Saved Responses
+export const savedResponsesApi = {
+  list: (workspaceId: string, params?: any) =>
+    api.get(`/workspaces/${workspaceId}/saved-responses`, { params }),
+  create: (workspaceId: string, data: any) =>
+    api.post(`/workspaces/${workspaceId}/saved-responses`, data),
+  update: (workspaceId: string, id: string, data: any) =>
+    api.patch(`/workspaces/${workspaceId}/saved-responses/${id}`, data),
+  delete: (workspaceId: string, id: string) =>
+    api.delete(`/workspaces/${workspaceId}/saved-responses/${id}`),
+};
+
+// Contact Activity
+export const contactActivityApi = {
+  list: (workspaceId: string, contactId: string) =>
+    api.get(`/workspaces/${workspaceId}/contacts/${contactId}/activity`),
+  add: (workspaceId: string, contactId: string, data: any) =>
+    api.post(`/workspaces/${workspaceId}/contacts/${contactId}/activity`, data),
+};
+
 export default api;

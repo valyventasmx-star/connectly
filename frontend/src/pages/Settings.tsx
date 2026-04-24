@@ -1,20 +1,32 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import { useAuthStore } from '../store/auth';
-import { authApi } from '../api/client';
+import { useWorkspaceStore } from '../store/workspace';
+import { authApi, savedResponsesApi } from '../api/client';
+import { SavedResponse } from '../types';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Avatar from '../components/ui/Avatar';
+import { PlusIcon, PencilIcon, TrashIcon } from '@heroicons/react/24/outline';
 
 export default function Settings() {
   const { user, updateUser } = useAuthStore();
+  const { currentWorkspace } = useWorkspaceStore();
   const [profile, setProfile] = useState({ name: user?.name || '', avatar: user?.avatar || '' });
   const [passwords, setPasswords] = useState({ current: '', new: '', confirm: '' });
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
-  const [tab, setTab] = useState<'profile' | 'password' | 'notifications'>('profile');
+  const [tab, setTab] = useState<'profile' | 'password' | 'notifications' | 'saved-responses'>('profile');
+
+  // Saved responses state
+  const [responses, setResponses] = useState<SavedResponse[]>([]);
+  const [loadingResponses, setLoadingResponses] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState({ title: '', content: '', category: '' });
+  const [savingResponse, setSavingResponse] = useState(false);
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -52,10 +64,63 @@ export default function Settings() {
     }
   };
 
+  const loadResponses = async () => {
+    if (!currentWorkspace) return;
+    setLoadingResponses(true);
+    try {
+      const { data } = await savedResponsesApi.list(currentWorkspace.id);
+      setResponses(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingResponses(false);
+    }
+  };
+
+  useEffect(() => {
+    if (tab === 'saved-responses') loadResponses();
+  }, [tab, currentWorkspace]);
+
+  const resetForm = () => {
+    setFormData({ title: '', content: '', category: '' });
+    setEditingId(null);
+    setShowForm(false);
+  };
+
+  const handleSaveResponse = async () => {
+    if (!currentWorkspace || !formData.title.trim() || !formData.content.trim()) return;
+    setSavingResponse(true);
+    try {
+      if (editingId) {
+        const { data } = await savedResponsesApi.update(currentWorkspace.id, editingId, formData);
+        setResponses(prev => prev.map(r => r.id === editingId ? data : r));
+      } else {
+        const { data } = await savedResponsesApi.create(currentWorkspace.id, formData);
+        setResponses(prev => [...prev, data]);
+      }
+      resetForm();
+    } finally {
+      setSavingResponse(false);
+    }
+  };
+
+  const handleEdit = (r: SavedResponse) => {
+    setFormData({ title: r.title, content: r.content, category: r.category || '' });
+    setEditingId(r.id);
+    setShowForm(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!currentWorkspace) return;
+    await savedResponsesApi.delete(currentWorkspace.id, id);
+    setResponses(prev => prev.filter(r => r.id !== id));
+  };
+
   const tabs = [
     { key: 'profile', label: 'Profile' },
     { key: 'password', label: 'Password' },
     { key: 'notifications', label: 'Notifications' },
+    { key: 'saved-responses', label: 'Saved Responses' },
   ] as const;
 
   return (
@@ -174,6 +239,114 @@ export default function Settings() {
                   ))}
                   <Button>Save Preferences</Button>
                 </div>
+              </div>
+            )}
+
+            {tab === 'saved-responses' && (
+              <div className="max-w-2xl">
+                <div className="flex items-center justify-between mb-6">
+                  <div>
+                    <h2 className="text-base font-semibold text-gray-900">Saved Responses</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Pre-written messages your team can insert with one click (⚡ in the chat input)</p>
+                  </div>
+                  <Button
+                    size="sm"
+                    icon={<PlusIcon className="w-4 h-4" />}
+                    onClick={() => { resetForm(); setShowForm(true); }}
+                  >
+                    New Response
+                  </Button>
+                </div>
+
+                {/* Create/Edit form */}
+                {showForm && (
+                  <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 mb-6">
+                    <h3 className="text-sm font-semibold text-gray-900 mb-4">
+                      {editingId ? 'Edit Response' : 'New Saved Response'}
+                    </h3>
+                    <div className="space-y-3">
+                      <Input
+                        label="Title (shown in the picker)"
+                        placeholder="e.g. Welcome message"
+                        value={formData.title}
+                        onChange={e => setFormData(f => ({ ...f, title: e.target.value }))}
+                      />
+                      <Input
+                        label="Category (optional)"
+                        placeholder="e.g. Support, Sales, Billing"
+                        value={formData.category}
+                        onChange={e => setFormData(f => ({ ...f, category: e.target.value }))}
+                      />
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Message content</label>
+                        <textarea
+                          value={formData.content}
+                          onChange={e => setFormData(f => ({ ...f, content: e.target.value }))}
+                          placeholder="Write the full message that will be inserted..."
+                          rows={4}
+                          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 resize-none"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={handleSaveResponse}
+                          loading={savingResponse}
+                          disabled={!formData.title.trim() || !formData.content.trim()}
+                        >
+                          {editingId ? 'Save Changes' : 'Create Response'}
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={resetForm}>Cancel</Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Responses list */}
+                {loadingResponses ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : responses.length === 0 ? (
+                  <div className="text-center py-16 border-2 border-dashed border-gray-200 rounded-xl">
+                    <p className="text-gray-500 text-sm font-medium">No saved responses yet</p>
+                    <p className="text-gray-400 text-xs mt-1">Create your first one to speed up replies</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {responses.map((r) => (
+                      <div key={r.id} className="bg-white border border-gray-200 rounded-xl p-4">
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{r.title}</p>
+                            {r.category && (
+                              <span className="text-[11px] bg-primary-50 text-primary-600 px-2 py-0.5 rounded-full flex-shrink-0">
+                                {r.category}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleEdit(r)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-primary-600 hover:bg-primary-50 transition-colors"
+                              title="Edit"
+                            >
+                              <PencilIcon className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(r.id)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                              title="Delete"
+                            >
+                              <TrashIcon className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                        <p className="text-sm text-gray-600 line-clamp-2">{r.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>

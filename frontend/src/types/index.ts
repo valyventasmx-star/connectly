@@ -71,6 +71,24 @@ export interface Message {
   createdAt: string;
 }
 
+export interface SavedResponse {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
+  workspaceId: string;
+  createdAt: string;
+}
+
+export interface ContactActivity {
+  id: string;
+  type: string;
+  description: string;
+  metadata?: string;
+  contactId: string;
+  createdAt: string;
+}
+
 export interface Conversation {
   id: string;
   status: 'open' | 'resolved' | 'pending';
