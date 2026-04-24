@@ -13,10 +13,11 @@ import { SavedResponse } from '../../types';
 
 interface Props {
   onSend: (content: string, isNote?: boolean) => Promise<void>;
+  onTyping?: () => void;
   disabled?: boolean;
 }
 
-export default function ChatInput({ onSend, disabled }: Props) {
+export default function ChatInput({ onSend, onTyping, disabled }: Props) {
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
@@ -98,6 +99,7 @@ export default function ChatInput({ onSend, disabled }: Props) {
     const ta = e.target;
     ta.style.height = 'auto';
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+    onTyping?.();
   };
 
   const isNote = noteMode;

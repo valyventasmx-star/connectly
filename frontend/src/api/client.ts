@@ -129,4 +129,60 @@ export const contactActivityApi = {
     api.post(`/workspaces/${workspaceId}/contacts/${contactId}/activity`, data),
 };
 
+// Search
+export const searchApi = {
+  search: (workspaceId: string, q: string) =>
+    api.get(`/workspaces/${workspaceId}/search`, { params: { q } }),
+};
+
+// Reactions
+export const reactionsApi = {
+  toggle: (workspaceId: string, conversationId: string, messageId: string, emoji: string) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/messages/${messageId}/reactions`, { emoji }),
+};
+
+// Custom Fields
+export const customFieldsApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/custom-fields`),
+  create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/custom-fields`, data),
+  update: (workspaceId: string, fieldId: string, data: any) => api.patch(`/workspaces/${workspaceId}/custom-fields/${fieldId}`, data),
+  delete: (workspaceId: string, fieldId: string) => api.delete(`/workspaces/${workspaceId}/custom-fields/${fieldId}`),
+  getValues: (workspaceId: string, contactId: string) => api.get(`/workspaces/${workspaceId}/custom-fields/values/${contactId}`),
+  setValue: (workspaceId: string, contactId: string, fieldId: string, value: string) =>
+    api.put(`/workspaces/${workspaceId}/custom-fields/values/${contactId}/${fieldId}`, { value }),
+};
+
+// Templates
+export const templatesApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/templates`),
+  create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/templates`, data),
+  update: (workspaceId: string, id: string, data: any) => api.patch(`/workspaces/${workspaceId}/templates/${id}`, data),
+  delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/templates/${id}`),
+};
+
+// Outbound Webhooks
+export const outboundWebhooksApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/outbound-webhooks`),
+  create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/outbound-webhooks`, data),
+  update: (workspaceId: string, id: string, data: any) => api.patch(`/workspaces/${workspaceId}/outbound-webhooks/${id}`, data),
+  delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/outbound-webhooks/${id}`),
+};
+
+// Reports
+export const reportsApi = {
+  lifecycle: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/reports/lifecycle`),
+  conversations: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/reports/conversations`),
+  leaderboard: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/reports/leaderboard`),
+  tags: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/reports/tags`),
+  exportContacts: async (workspaceId: string) => {
+    const res = await api.get(`/workspaces/${workspaceId}/reports/export/contacts`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a'); a.href = url; a.download = 'contacts.csv'; a.click(); URL.revokeObjectURL(url);
+  },
+  exportConversations: async (workspaceId: string) => {
+    const res = await api.get(`/workspaces/${workspaceId}/reports/export/conversations`, { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data); const a = document.createElement('a'); a.href = url; a.download = 'conversations.csv'; a.click(); URL.revokeObjectURL(url);
+  },
+};
+
 export default api;

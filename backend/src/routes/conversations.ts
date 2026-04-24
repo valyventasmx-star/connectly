@@ -15,9 +15,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   if (channelId) where.channelId = channelId;
   if (assigneeId === 'null') where.assigneeId = null;
   else if (assigneeId) where.assigneeId = assigneeId;
-  if (search) {
-    where.contact = { name: { contains: search } };
-  }
+  if (search) where.contact = { name: { contains: search } };
 
   const [conversations, total] = await Promise.all([
     prisma.conversation.findMany({
@@ -44,24 +42,14 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   const { contactId, channelId, status } = req.body;
   if (!contactId || !channelId) return res.status(400).json({ error: 'contactId and channelId required' });
 
-  // Check for existing open conversation
   const existing = await prisma.conversation.findFirst({
     where: { contactId, channelId, status: 'open' },
   });
   if (existing) return res.json(existing);
 
   const conversation = await prisma.conversation.create({
-    data: {
-      contactId,
-      channelId,
-      workspaceId: req.params.workspaceId,
-      status: status || 'open',
-    },
-    include: {
-      contact: true,
-      channel: true,
-      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-    },
+    data: { contactId, channelId, workspaceId: req.params.workspaceId, status: status || 'open' },
+    include: { contact: true, channel: true, messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
   });
   res.status(201).json(conversation);
 });
@@ -81,18 +69,27 @@ router.get('/:conversationId', async (req: AuthRequest, res: Response) => {
   res.json(conversation);
 });
 
-// Update conversation (status, assignee, tags)
+// Update conversation (status, assignee, tags, snooze)
 router.patch('/:conversationId', async (req: AuthRequest, res: Response) => {
-  const { status, assigneeId, tagIds } = req.body;
+  const { status, assigneeId, tagIds, snoozedUntil } = req.body;
+
+  const updateData: any = {};
+  if (status !== undefined) updateData.status = status;
+  if (assigneeId !== undefined) updateData.assigneeId = assigneeId;
+  if (snoozedUntil !== undefined) {
+    updateData.snoozedUntil = snoozedUntil ? new Date(snoozedUntil) : null;
+    if (snoozedUntil) updateData.status = 'pending';
+  }
+  if (tagIds !== undefined) {
+    updateData.conversationTags = {
+      deleteMany: {},
+      create: tagIds.map((tagId: string) => ({ tagId })),
+    };
+  }
+
   const conversation = await prisma.conversation.update({
     where: { id: req.params.conversationId },
-    data: {
-      status,
-      assigneeId,
-      conversationTags: tagIds !== undefined
-        ? { deleteMany: {}, create: tagIds.map((tagId: string) => ({ tagId })) }
-        : undefined,
-    },
+    data: updateData,
     include: {
       contact: true,
       channel: true,

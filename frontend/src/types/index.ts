@@ -52,10 +52,19 @@ export interface Contact {
   avatar?: string;
   company?: string;
   notes?: string;
+  lifecycleStage?: string;
   workspaceId: string;
   createdAt: string;
   contactTags?: { tag: Tag }[];
   _count?: { conversations: number };
+}
+
+export interface MessageReaction {
+  id: string;
+  emoji: string;
+  messageId: string;
+  userId: string;
+  userName: string;
 }
 
 export interface Message {
@@ -65,12 +74,34 @@ export interface Message {
   direction: 'inbound' | 'outbound';
   status: 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
   waMessageId?: string;
+  mediaUrl?: string;
+  mediaType?: string;
   isNote?: boolean;
   isAiReply?: boolean;
   conversationId: string;
   senderId?: string;
   senderName?: string;
   createdAt: string;
+  reactions?: MessageReaction[];
+}
+
+export interface Conversation {
+  id: string;
+  status: 'open' | 'resolved' | 'pending';
+  contactId: string;
+  channelId: string;
+  workspaceId: string;
+  assigneeId?: string;
+  lastMessageAt?: string;
+  firstResponseAt?: string;
+  snoozedUntil?: string;
+  unreadCount: number;
+  createdAt: string;
+  contact: Contact;
+  channel: Channel;
+  assignee?: Pick<User, 'id' | 'name' | 'avatar'>;
+  messages?: Message[];
+  conversationTags?: { tag: Tag }[];
 }
 
 export interface SavedResponse {
@@ -91,19 +122,41 @@ export interface ContactActivity {
   createdAt: string;
 }
 
-export interface Conversation {
+export interface CustomField {
   id: string;
-  status: 'open' | 'resolved' | 'pending';
-  contactId: string;
-  channelId: string;
+  name: string;
+  type: 'text' | 'number' | 'date' | 'select';
+  options?: string;
   workspaceId: string;
-  assigneeId?: string;
-  lastMessageAt?: string;
-  unreadCount: number;
+}
+
+export interface CustomFieldValue {
+  id: string;
+  value: string;
+  contactId: string;
+  fieldId: string;
+  field: CustomField;
+}
+
+export interface WhatsAppTemplate {
+  id: string;
+  name: string;
+  content: string;
+  language: string;
+  category: string;
+  status: string;
+  workspaceId: string;
+  channelId?: string;
   createdAt: string;
-  contact: Contact;
-  channel: Channel;
-  assignee?: Pick<User, 'id' | 'name' | 'avatar'>;
-  messages?: Message[];
-  conversationTags?: { tag: Tag }[];
+}
+
+export interface OutboundWebhook {
+  id: string;
+  name: string;
+  url: string;
+  events: string;
+  active: boolean;
+  secret?: string;
+  workspaceId: string;
+  createdAt: string;
 }

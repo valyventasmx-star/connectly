@@ -18,7 +18,8 @@ model User {
   updatedAt DateTime @updatedAt
 
   workspaceMembers      WorkspaceMember[]
-  assignedConversations Conversation[] @relation("AssignedTo")
+  assignedConversations Conversation[]    @relation("AssignedTo")
+  reactions             MessageReaction[]
 }
 
 model Workspace {
@@ -37,40 +38,42 @@ model Workspace {
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  members        WorkspaceMember[]
-  channels       Channel[]
-  contacts       Contact[]
-  conversations  Conversation[]
-  tags           Tag[]
-  broadcasts     Broadcast[]
-  savedResponses SavedResponse[]
+  members           WorkspaceMember[]
+  channels          Channel[]
+  contacts          Contact[]
+  conversations     Conversation[]
+  tags              Tag[]
+  broadcasts        Broadcast[]
+  savedResponses    SavedResponse[]
+  customFields      CustomField[]
+  outboundWebhooks  OutboundWebhook[]
+  templates         WhatsAppTemplate[]
 }
 
-
 model Broadcast {
-  id          String    @id @default(cuid())
-  name        String
-  message     String
-  status      String    @default("draft")
-  workspaceId String
-  channelId   String?
-  scheduledAt DateTime?
-  sentAt      DateTime?
-  totalContacts Int     @default(0)
-  sentCount   Int       @default(0)
-  failedCount Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            String    @id @default(cuid())
+  name          String
+  message       String
+  status        String    @default("draft")
+  workspaceId   String
+  channelId     String?
+  scheduledAt   DateTime?
+  sentAt        DateTime?
+  totalContacts Int       @default(0)
+  sentCount     Int       @default(0)
+  failedCount   Int       @default(0)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  recipients  BroadcastRecipient[]
+  workspace  Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipients BroadcastRecipient[]
 }
 
 model BroadcastRecipient {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   broadcastId String
   contactId   String
-  status      String   @default("pending")
+  status      String    @default("pending")
   sentAt      DateTime?
 
   broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
@@ -104,8 +107,9 @@ model Channel {
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations Conversation[]
+  templates     WhatsAppTemplate[]
 }
 
 model Contact {
@@ -121,11 +125,12 @@ model Contact {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  workspace           Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspace           Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   conversations       Conversation[]
   contactTags         ContactTag[]
   broadcastRecipients BroadcastRecipient[]
   activities          ContactActivity[]
+  customFieldValues   ContactCustomFieldValue[]
 }
 
 model Tag {
@@ -163,16 +168,18 @@ model ConversationTag {
 }
 
 model Conversation {
-  id            String    @id @default(cuid())
-  status        String    @default("open")
-  contactId     String
-  channelId     String
-  workspaceId   String
-  assigneeId    String?
-  lastMessageAt DateTime?
-  unreadCount   Int       @default(0)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  status          String    @default("open")
+  contactId       String
+  channelId       String
+  workspaceId     String
+  assigneeId      String?
+  lastMessageAt   DateTime?
+  firstResponseAt DateTime?
+  snoozedUntil    DateTime?
+  unreadCount     Int       @default(0)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   contact          Contact           @relation(fields: [contactId], references: [id], onDelete: Cascade)
   channel          Channel           @relation(fields: [channelId], references: [id], onDelete: Cascade)
@@ -196,14 +203,84 @@ model SavedResponse {
 
 model ContactActivity {
   id          String   @id @default(cuid())
-  type        String   // message_sent, message_received, status_changed, note_added, tag_added, lifecycle_changed, assigned
+  type        String
   description String
   contactId   String
   workspaceId String
-  metadata    String?  // JSON string for extra data
+  metadata    String?
   createdAt   DateTime @default(now())
 
   contact Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+}
+
+model CustomField {
+  id          String   @id @default(cuid())
+  name        String
+  type        String   @default("text") // text, number, date, select
+  options     String?  // JSON array for select type
+  workspaceId String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  values    ContactCustomFieldValue[]
+
+  @@unique([name, workspaceId])
+}
+
+model ContactCustomFieldValue {
+  id        String @id @default(cuid())
+  value     String
+  contactId String
+  fieldId   String
+
+  contact Contact     @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  field   CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+
+  @@unique([contactId, fieldId])
+}
+
+model MessageReaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  messageId String
+  userId    String
+  userName  String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+}
+
+model OutboundWebhook {
+  id          String   @id @default(cuid())
+  name        String
+  url         String
+  events      String   // JSON array: ["conversation.created","message.received"]
+  active      Boolean  @default(true)
+  secret      String?
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model WhatsAppTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  content     String
+  language    String   @default("en")
+  category    String   @default("MARKETING")
+  status      String   @default("draft")
+  workspaceId String
+  channelId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  channel   Channel?  @relation(fields: [channelId], references: [id])
 }
 
 model Message {
@@ -222,5 +299,6 @@ model Message {
   senderName     String?
   createdAt      DateTime @default(now())
 
-  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  reactions    MessageReaction[]
 }

@@ -91,12 +91,24 @@ export function useSocket() {
       window.dispatchEvent(new CustomEvent('conversation_updated', { detail: { conversationId } }));
     };
 
+    const handleTyping = (data: { userId: string; userName: string; isTyping: boolean }) => {
+      window.dispatchEvent(new CustomEvent('typing_indicator', { detail: data }));
+    };
+
+    const handleReactionUpdated = (data: { messageId: string; conversationId: string; reactions: any[] }) => {
+      window.dispatchEvent(new CustomEvent('reaction_updated', { detail: data }));
+    };
+
     socketInstance.on('new_message', handleNewMessage);
     socketInstance.on('conversation_updated', handleConversationUpdated);
+    socketInstance.on('typing', handleTyping);
+    socketInstance.on('reaction_updated', handleReactionUpdated);
 
     return () => {
       socketInstance?.off('new_message', handleNewMessage);
       socketInstance?.off('conversation_updated', handleConversationUpdated);
+      socketInstance?.off('typing', handleTyping);
+      socketInstance?.off('reaction_updated', handleReactionUpdated);
     };
   }, [currentWorkspace, activeConversation]);
 
