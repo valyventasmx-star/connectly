@@ -23,6 +23,8 @@ import billingRoutes from './routes/billing';
 import aiRoutes from './routes/ai';
 import analyticsRoutes from './routes/analytics';
 import adminRoutes from './routes/admin';
+import broadcastRoutes from './routes/broadcasts';
+import reportsRoutes from './routes/reports';
 
 const app = express();
 const httpServer = createServer(app);
@@ -55,6 +57,8 @@ app.use('/api/workspaces/:workspaceId/conversations', messageRoutes);
 app.use('/api/workspaces/:workspaceId/tags', tagRoutes);
 app.use('/api/workspaces/:workspaceId', analyticsRoutes);
 app.use('/api/workspaces/:workspaceId', aiRoutes);
+app.use('/api/workspaces/:workspaceId/broadcasts', broadcastRoutes);
+app.use('/api/workspaces/:workspaceId/reports', reportsRoutes);
 app.use('/api/workspaces', billingRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/admin', adminRoutes);

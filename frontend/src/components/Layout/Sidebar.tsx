@@ -11,6 +11,8 @@ import {
   CreditCardIcon,
   SparklesIcon,
   ShieldCheckIcon,
+  MegaphoneIcon,
+  DocumentChartBarIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -21,6 +23,8 @@ const navItems = [
   { to: '/inbox', icon: InboxIcon, label: 'Inbox' },
   { to: '/contacts', icon: UserGroupIcon, label: 'Contacts' },
   { to: '/channels', icon: PhoneIcon, label: 'Channels' },
+  { to: '/broadcasts', icon: MegaphoneIcon, label: 'Broadcasts' },
+  { to: '/reports', icon: DocumentChartBarIcon, label: 'Reports' },
   { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
   { to: '/workspaces', icon: BuildingOfficeIcon, label: 'Workspaces' },
 ];

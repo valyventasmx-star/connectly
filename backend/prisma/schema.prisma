@@ -42,6 +42,38 @@ model Workspace {
   contacts      Contact[]
   conversations Conversation[]
   tags          Tag[]
+  broadcasts    Broadcast[]
+}
+
+
+model Broadcast {
+  id          String    @id @default(cuid())
+  name        String
+  message     String
+  status      String    @default("draft")
+  workspaceId String
+  channelId   String?
+  scheduledAt DateTime?
+  sentAt      DateTime?
+  totalContacts Int     @default(0)
+  sentCount   Int       @default(0)
+  failedCount Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  workspace   Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipients  BroadcastRecipient[]
+}
+
+model BroadcastRecipient {
+  id          String   @id @default(cuid())
+  broadcastId String
+  contactId   String
+  status      String   @default("pending")
+  sentAt      DateTime?
+
+  broadcast Broadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  contact   Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
 }
 
 model WorkspaceMember {
@@ -76,20 +108,22 @@ model Channel {
 }
 
 model Contact {
-  id          String   @id @default(cuid())
-  name        String
-  phone       String?
-  email       String?
-  avatar      String?
-  company     String?
-  notes       String?
-  workspaceId String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  name           String
+  phone          String?
+  email          String?
+  avatar         String?
+  company        String?
+  notes          String?
+  lifecycleStage String?  @default("new_lead")
+  workspaceId    String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  conversations Conversation[]
-  contactTags   ContactTag[]
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  conversations      Conversation[]
+  contactTags        ContactTag[]
+  broadcastRecipients BroadcastRecipient[]
 }
 
 model Tag {
