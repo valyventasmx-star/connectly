@@ -13,7 +13,8 @@ router.get('/', async (req: AuthRequest, res: Response) => {
   const where: any = { workspaceId: req.params.workspaceId };
   if (status) where.status = status;
   if (channelId) where.channelId = channelId;
-  if (assigneeId) where.assigneeId = assigneeId;
+  if (assigneeId === 'null') where.assigneeId = null;
+  else if (assigneeId) where.assigneeId = assigneeId;
   if (search) {
     where.contact = { name: { contains: search } };
   }

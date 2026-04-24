@@ -76,15 +76,16 @@ router.get('/:contactId', async (req: AuthRequest, res: Response) => {
 
 // Update contact
 router.patch('/:contactId', async (req: AuthRequest, res: Response) => {
-  const { name, phone, email, company, notes, tagIds } = req.body;
+  const { name, phone, email, company, notes, tagIds, lifecycleStage } = req.body;
   const contact = await prisma.contact.update({
     where: { id: req.params.contactId },
     data: {
-      name,
-      phone,
-      email,
-      company,
-      notes,
+      ...(name !== undefined && { name }),
+      ...(phone !== undefined && { phone }),
+      ...(email !== undefined && { email }),
+      ...(company !== undefined && { company }),
+      ...(notes !== undefined && { notes }),
+      ...(lifecycleStage !== undefined && { lifecycleStage }),
       contactTags: tagIds !== undefined
         ? {
             deleteMany: {},
