@@ -75,6 +75,7 @@ model Workspace {
   notifications        Notification[]
   flowBots             FlowBot[]
   liveChatWidget       LiveChatWidget?
+  trainingDocuments    TrainingDocument[]
 }
 
 model Broadcast {
@@ -123,15 +124,24 @@ model WorkspaceMember {
 model Channel {
   id                 String   @id @default(cuid())
   name               String
-  type               String   @default("whatsapp")
+  type               String   @default("whatsapp") // whatsapp | instagram | messenger | telegram | email | widget
   phoneNumber        String?
   phoneNumberId      String?
   wabaId             String?
   accessToken        String?
   webhookVerifyToken String?
+  // Instagram / Messenger fields
+  pageId             String?  // Facebook Page ID
+  pageAccessToken    String?  // Page Access Token (long-lived)
+  instagramAccountId String?  // Instagram Business Account ID
+  // Telegram fields
+  telegramBotToken   String?
+  telegramBotUsername String?
   // Email channel fields
   emailConfig        String?  // JSON: {smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, imapHost, imapPort, imapUser, imapPass}
-  emailAddress       String?  // The From/inbox address
+  emailAddress       String?
+  // Routing
+  languages          String?  // JSON array of language codes this channel handles, e.g. ["en","es"]
   status             String   @default("pending")
   workspaceId        String
   createdAt          DateTime @default(now())
@@ -151,6 +161,9 @@ model Contact {
   company        String?
   notes          String?
   lifecycleStage String?  @default("new_lead")
+  language       String?  // detected language code e.g. "en", "es", "fr"
+  externalId     String?  // platform-specific ID (PSID for Messenger, Instagram UID, Telegram chatId)
+  platform       String?  // whatsapp | instagram | messenger | telegram | widget
   workspaceId    String
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -334,6 +347,8 @@ model Message {
   mentions       String?  // JSON array of user IDs mentioned
   intent         String?  // AI-detected intent label
   qualityScore   Int?     // AI quality score 1-5 for outbound messages
+  language       String?  // detected language code
+  externalId     String?  // platform message ID (Instagram/Messenger/Telegram)
   conversationId String
   senderId       String?
   senderName     String?
@@ -544,6 +559,21 @@ model LiveChatWidget {
   allowedOrigins String?  // JSON array of domains
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model TrainingDocument {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  fileType    String?  // pdf | txt | md | url | manual
+  fileUrl     String?
+  tokens      Int      @default(0)  // approximate word count
+  active      Boolean  @default(true)
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

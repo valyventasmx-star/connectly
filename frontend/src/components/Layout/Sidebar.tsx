@@ -101,6 +101,9 @@ export default function Sidebar() {
         {/* Bottom actions */}
         <div className="flex flex-col gap-1">
           <NotificationBell />
+          <NavLink to="/ai-training" title="AI Training" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
+            <SparklesIcon className="w-5 h-5" />
+          </NavLink>
           <NavLink to="/ai-settings" title="AI Settings" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
             <SparklesIcon className="w-5 h-5" />
           </NavLink>

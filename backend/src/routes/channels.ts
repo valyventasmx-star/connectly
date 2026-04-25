@@ -93,4 +93,63 @@ router.post('/:channelId/test', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// POST /:channelId/connect-telegram — register Telegram webhook
+router.post('/:channelId/connect-telegram', async (req: AuthRequest, res: Response) => {
+  const channel = await prisma.channel.findFirst({
+    where: { id: req.params.channelId, workspaceId: req.params.workspaceId },
+  });
+  if (!channel) return res.status(404).json({ error: 'Channel not found' });
+  if (!channel.telegramBotToken) return res.status(400).json({ error: 'Bot token required' });
+
+  try {
+    const { registerTelegramWebhook } = await import('./telegramWebhook');
+    const backendUrl = process.env.BACKEND_URL || `https://your-backend.railway.app`;
+    const webhookUrl = `${backendUrl}/api/webhooks/telegram/${channel.id}`;
+    const result = await registerTelegramWebhook(channel.telegramBotToken, webhookUrl);
+
+    if (result.ok) {
+      // Verify bot info
+      const axios = (await import('axios')).default;
+      const botInfo = await axios.get(`https://api.telegram.org/bot${channel.telegramBotToken}/getMe`);
+      await prisma.channel.update({
+        where: { id: channel.id },
+        data: {
+          status: 'connected',
+          telegramBotUsername: botInfo.data?.result?.username,
+        },
+      });
+      res.json({ success: true, username: botInfo.data?.result?.username });
+    } else {
+      res.status(400).json({ error: 'Telegram webhook registration failed', details: result });
+    }
+  } catch (err: any) {
+    await prisma.channel.update({ where: { id: channel.id }, data: { status: 'error' } });
+    res.status(400).json({ error: 'Failed to connect Telegram', details: err.message });
+  }
+});
+
+// POST /:channelId/connect-instagram — verify Instagram/Messenger page token
+router.post('/:channelId/connect-instagram', async (req: AuthRequest, res: Response) => {
+  const channel = await prisma.channel.findFirst({
+    where: { id: req.params.channelId, workspaceId: req.params.workspaceId },
+  });
+  if (!channel) return res.status(404).json({ error: 'Channel not found' });
+  if (!channel.pageAccessToken) return res.status(400).json({ error: 'Page Access Token required' });
+
+  try {
+    const axios = (await import('axios')).default;
+    const response = await axios.get('https://graph.facebook.com/v19.0/me', {
+      params: { access_token: channel.pageAccessToken, fields: 'id,name' },
+    });
+    await prisma.channel.update({
+      where: { id: channel.id },
+      data: { status: 'connected', pageId: response.data.id },
+    });
+    res.json({ success: true, pageName: response.data.name, pageId: response.data.id });
+  } catch (err: any) {
+    await prisma.channel.update({ where: { id: channel.id }, data: { status: 'error' } });
+    res.status(400).json({ error: 'Connection failed', details: err.response?.data?.error?.message || err.message });
+  }
+});
+
 export default router;

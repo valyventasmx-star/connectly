@@ -53,6 +53,9 @@ import notificationsRoutes from './routes/notifications';
 import mediaUploadRoutes from './routes/mediaUpload';
 import flowBotsRoutes from './routes/flowBots';
 import liveChatRoutes from './routes/liveChat';
+import instagramWebhookRoutes from './routes/instagramWebhook';
+import telegramWebhookRoutes from './routes/telegramWebhook';
+import aiTrainingRoutes from './routes/aiTraining';
 import { startCronJobs, startDailyDigest } from './services/cron';
 import path from 'path';
 
@@ -126,6 +129,10 @@ app.use('/api/workspaces', billingRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/webhooks/instagram', instagramWebhookRoutes);
+app.use('/api/webhooks/messenger', instagramWebhookRoutes); // same handler, different Meta object type
+app.use('/api/webhooks/telegram', telegramWebhookRoutes);
+app.use('/api/workspaces/:workspaceId/ai-training', aiTrainingRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 

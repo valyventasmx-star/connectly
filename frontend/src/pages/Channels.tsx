@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
 import { channelsApi, emailChannelApi } from '../api/client';
+import api from '../api/client';
 import { Channel } from '../types';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
@@ -23,9 +24,22 @@ import {
 
 const EMPTY_FORM = {
   name: '', type: 'whatsapp', phoneNumber: '', phoneNumberId: '', wabaId: '', accessToken: '',
+  webhookVerifyToken: '',
+  // Instagram / Messenger
+  pageId: '', pageAccessToken: '', instagramAccountId: '',
+  // Telegram
+  telegramBotToken: '',
   // Email fields
   emailAddress: '', smtpHost: '', smtpPort: '587', smtpUser: '', smtpPass: '', smtpSecure: 'false',
 };
+
+const CHANNEL_TYPES = [
+  { value: 'whatsapp', label: 'WhatsApp Business', emoji: '💬' },
+  { value: 'instagram', label: 'Instagram DM', emoji: '📸' },
+  { value: 'messenger', label: 'Facebook Messenger', emoji: '💙' },
+  { value: 'telegram', label: 'Telegram Bot', emoji: '✈️' },
+  { value: 'email', label: 'Email', emoji: '📧' },
+];
 
 const STATUS_ICON: Record<string, any> = {
   connected: <CheckCircleIcon className="w-5 h-5 text-green-500" />,
@@ -70,6 +84,10 @@ export default function Channels() {
       name: ch.name, type: ch.type,
       phoneNumber: ch.phoneNumber || '', phoneNumberId: ch.phoneNumberId || '',
       wabaId: ch.wabaId || '', accessToken: ch.accessToken || '',
+      webhookVerifyToken: (ch as any).webhookVerifyToken || '',
+      pageId: (ch as any).pageId || '', pageAccessToken: (ch as any).pageAccessToken || '',
+      instagramAccountId: (ch as any).instagramAccountId || '',
+      telegramBotToken: (ch as any).telegramBotToken || '',
       emailAddress: ch.emailAddress || '',
       smtpHost: emailConfig.host || '', smtpPort: String(emailConfig.port || '587'),
       smtpUser: emailConfig.user || '', smtpPass: emailConfig.pass || '',
@@ -90,10 +108,21 @@ export default function Channels() {
           user: form.smtpUser, pass: form.smtpPass,
           secure: form.smtpSecure === 'true',
         });
-      } else {
+      } else if (form.type === 'whatsapp') {
         Object.assign(payload, {
           phoneNumber: form.phoneNumber, phoneNumberId: form.phoneNumberId,
           wabaId: form.wabaId, accessToken: form.accessToken,
+          webhookVerifyToken: form.webhookVerifyToken,
+        });
+      } else if (form.type === 'instagram' || form.type === 'messenger') {
+        Object.assign(payload, {
+          pageAccessToken: form.pageAccessToken,
+          instagramAccountId: form.instagramAccountId,
+          webhookVerifyToken: form.webhookVerifyToken,
+        });
+      } else if (form.type === 'telegram') {
+        Object.assign(payload, {
+          telegramBotToken: form.telegramBotToken,
         });
       }
       if (editing) {
@@ -367,27 +396,90 @@ export default function Channels() {
           <Input label="Channel name *" placeholder="e.g. WhatsApp Support" value={form.name} onChange={f('name')} autoFocus />
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Channel type</label>
-            <select className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" value={form.type} onChange={f('type')}>
-              <option value="whatsapp">💬 WhatsApp Business</option>
-              <option value="email">📧 Email (SMTP)</option>
-              <option value="messenger">Facebook Messenger</option>
-              <option value="instagram">Instagram DM</option>
-            </select>
+            <div className="grid grid-cols-2 gap-2">
+              {CHANNEL_TYPES.map(ct => (
+                <button key={ct.value} type="button"
+                  onClick={() => setForm(f => ({ ...f, type: ct.value }))}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${form.type === ct.value ? 'border-primary-500 bg-primary-50 text-primary-700' : 'border-gray-200 hover:border-gray-300'}`}
+                >
+                  <span>{ct.emoji}</span> {ct.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          {form.type === 'email' ? (
+          {/* WhatsApp */}
+          {form.type === 'whatsapp' && (
+            <>
+              <Input label="Phone number" placeholder="+1 555 000 0000" value={form.phoneNumber} onChange={f('phoneNumber')} />
+              <div className="border-t border-gray-100 pt-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Meta API Credentials</p>
+                <div className="space-y-3">
+                  <Input label="Phone Number ID" placeholder="From Meta Developer Console → WhatsApp → API Setup" value={form.phoneNumberId} onChange={f('phoneNumberId')} />
+                  <Input label="WhatsApp Business Account ID (WABA ID)" placeholder="Optional — for template management" value={form.wabaId} onChange={f('wabaId')} />
+                  <Input label="Permanent Access Token" placeholder="EAAxxxxx..." value={form.accessToken} onChange={f('accessToken')} type="password" />
+                  <Input label="Webhook Verify Token" placeholder="Any secret string you choose" value={form.webhookVerifyToken} onChange={f('webhookVerifyToken')} />
+                </div>
+              </div>
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 space-y-1">
+                <p><strong>Step 1:</strong> Create a Meta App at developers.facebook.com → Add WhatsApp product</p>
+                <p><strong>Step 2:</strong> Copy Phone Number ID + generate a System User Access Token</p>
+                <p><strong>Step 3:</strong> Save this channel, then set Meta webhook URL to: <code className="bg-amber-100 px-1 rounded">/api/webhooks/whatsapp/[channelId]</code></p>
+              </div>
+            </>
+          )}
+
+          {/* Instagram DM */}
+          {form.type === 'instagram' && (
+            <>
+              <div className="bg-pink-50 border border-pink-100 rounded-xl p-3 text-xs text-pink-700 space-y-1">
+                <p><strong>Requirements:</strong> Facebook Page connected to an Instagram Business/Creator account</p>
+                <p><strong>Step 1:</strong> Create a Meta App at developers.facebook.com → Add Instagram product</p>
+                <p><strong>Step 2:</strong> Generate a Page Access Token with <code className="bg-pink-100 px-1 rounded">instagram_manage_messages</code> permission</p>
+                <p><strong>Step 3:</strong> Set webhook URL in Meta to: <code className="bg-pink-100 px-1 rounded">/api/webhooks/instagram/[channelId]</code></p>
+              </div>
+              <Input label="Page Access Token" placeholder="Long-lived Page Access Token from Meta" value={form.pageAccessToken} onChange={f('pageAccessToken')} type="password" />
+              <Input label="Webhook Verify Token" placeholder="Any secret string" value={form.webhookVerifyToken} onChange={f('webhookVerifyToken')} />
+            </>
+          )}
+
+          {/* Facebook Messenger */}
+          {form.type === 'messenger' && (
+            <>
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+                <p><strong>Requirements:</strong> A Facebook Page with Messenger enabled</p>
+                <p><strong>Step 1:</strong> Create a Meta App → Add Messenger product → Subscribe to your Page</p>
+                <p><strong>Step 2:</strong> Generate a Page Access Token with <code className="bg-blue-100 px-1 rounded">pages_messaging</code> permission</p>
+                <p><strong>Step 3:</strong> Set webhook URL in Meta to: <code className="bg-blue-100 px-1 rounded">/api/webhooks/messenger/[channelId]</code></p>
+              </div>
+              <Input label="Page Access Token" placeholder="Long-lived Page Access Token" value={form.pageAccessToken} onChange={f('pageAccessToken')} type="password" />
+              <Input label="Webhook Verify Token" placeholder="Any secret string" value={form.webhookVerifyToken} onChange={f('webhookVerifyToken')} />
+            </>
+          )}
+
+          {/* Telegram */}
+          {form.type === 'telegram' && (
+            <>
+              <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-xs text-sky-700 space-y-1">
+                <p><strong>Step 1:</strong> Open Telegram and message <code className="bg-sky-100 px-1 rounded">@BotFather</code></p>
+                <p><strong>Step 2:</strong> Send <code className="bg-sky-100 px-1 rounded">/newbot</code>, choose a name and username</p>
+                <p><strong>Step 3:</strong> Copy the bot token BotFather gives you and paste below</p>
+                <p><strong>Step 4:</strong> Save this channel — Connectly will automatically register the webhook with Telegram</p>
+              </div>
+              <Input label="Bot Token" placeholder="1234567890:ABCDefgh_xxxxxxxx" value={form.telegramBotToken} onChange={f('telegramBotToken')} type="password" />
+            </>
+          )}
+
+          {/* Email */}
+          {form.type === 'email' && (
             <>
               <Input label="From email address" placeholder="support@yourcompany.com" value={form.emailAddress} onChange={f('emailAddress')} />
               <div className="border-t border-gray-100 pt-4">
                 <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">SMTP Configuration</p>
                 <div className="space-y-3">
                   <div className="grid grid-cols-3 gap-3">
-                    <div className="col-span-2">
-                      <Input label="SMTP Host" placeholder="smtp.gmail.com" value={form.smtpHost} onChange={f('smtpHost')} />
-                    </div>
-                    <div>
-                      <Input label="Port" placeholder="587" value={form.smtpPort} onChange={f('smtpPort')} />
-                    </div>
+                    <div className="col-span-2"><Input label="SMTP Host" placeholder="smtp.gmail.com" value={form.smtpHost} onChange={f('smtpHost')} /></div>
+                    <div><Input label="Port" placeholder="587" value={form.smtpPort} onChange={f('smtpPort')} /></div>
                   </div>
                   <Input label="SMTP Username" placeholder="you@gmail.com" value={form.smtpUser} onChange={f('smtpUser')} />
                   <Input label="SMTP Password / App Password" placeholder="••••••••" value={form.smtpPass} onChange={f('smtpPass')} type="password" />
@@ -402,21 +494,6 @@ export default function Channels() {
               </div>
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
                 For Gmail: use an App Password (not your account password). Enable 2FA then create an App Password in Google Account → Security.
-              </div>
-            </>
-          ) : (
-            <>
-              <Input label="Phone number" placeholder="+1 555 000 0000" value={form.phoneNumber} onChange={f('phoneNumber')} />
-              <div className="border-t border-gray-100 pt-4">
-                <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Meta API Configuration</p>
-                <div className="space-y-3">
-                  <Input label="Phone Number ID" placeholder="From Meta Developer Console" value={form.phoneNumberId} onChange={f('phoneNumberId')} />
-                  <Input label="WhatsApp Business Account ID (WABA ID)" placeholder="Optional" value={form.wabaId} onChange={f('wabaId')} />
-                  <Input label="Permanent Access Token" placeholder="EAAxxxxx..." value={form.accessToken} onChange={f('accessToken')} type="password" />
-                </div>
-              </div>
-              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700">
-                You can add the channel now and configure the API credentials later. Use "Test Connection" after adding credentials to verify the setup.
               </div>
             </>
           )}

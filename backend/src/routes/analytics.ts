@@ -81,4 +81,69 @@ router.get('/analytics', async (req: AuthRequest, res: Response) => {
   });
 });
 
+// GET /analytics/heatmap — message volume by hour (0-23) × weekday (0-6, Sun=0)
+router.get('/analytics/heatmap', async (req: AuthRequest, res: Response) => {
+  const workspaceId = req.params.workspaceId;
+  const days = parseInt(req.query.days as string || '30');
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const messages = await prisma.message.findMany({
+    where: {
+      conversation: { workspaceId },
+      createdAt: { gte: since },
+      direction: 'inbound',
+      isNote: false,
+    },
+    select: { createdAt: true },
+  });
+
+  // Build hour × weekday matrix (7 days × 24 hours)
+  const matrix: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
+  for (const msg of messages) {
+    const d = new Date(msg.createdAt);
+    const hour = d.getHours();
+    const day = d.getDay(); // 0 = Sunday
+    matrix[day][hour]++;
+  }
+
+  // Flatten to array for frontend
+  const cells: { day: number; hour: number; count: number }[] = [];
+  for (let day = 0; day < 7; day++) {
+    for (let hour = 0; hour < 24; hour++) {
+      cells.push({ day, hour, count: matrix[day][hour] });
+    }
+  }
+
+  res.json({ cells, total: messages.length, days });
+});
+
+// GET /analytics/by-channel — message counts per channel
+router.get('/analytics/by-channel', async (req: AuthRequest, res: Response) => {
+  const workspaceId = req.params.workspaceId;
+  const channels = await prisma.channel.findMany({ where: { workspaceId } });
+
+  const result = await Promise.all(channels.map(async ch => {
+    const [total, inbound, outbound] = await Promise.all([
+      prisma.message.count({ where: { conversation: { channelId: ch.id } } }),
+      prisma.message.count({ where: { conversation: { channelId: ch.id }, direction: 'inbound' } }),
+      prisma.message.count({ where: { conversation: { channelId: ch.id }, direction: 'outbound' } }),
+    ]);
+    return { channelId: ch.id, name: ch.name, type: ch.type, total, inbound, outbound };
+  }));
+
+  res.json(result);
+});
+
+// GET /analytics/by-language — contacts grouped by detected language
+router.get('/analytics/by-language', async (req: AuthRequest, res: Response) => {
+  const workspaceId = req.params.workspaceId;
+  const contacts = await prisma.contact.groupBy({
+    by: ['language'],
+    where: { workspaceId },
+    _count: { id: true },
+    orderBy: { _count: { id: 'desc' } },
+  });
+  res.json(contacts.map(c => ({ language: c.language || 'unknown', count: c._count.id })));
+});
+
 export default router;

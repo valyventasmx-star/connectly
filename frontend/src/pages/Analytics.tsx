@@ -48,18 +48,86 @@ function StatCard({ icon, label, value, sub, color = 'primary' }: any) {
   );
 }
 
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+function HeatmapChart({ cells }: { cells: { day: number; hour: number; count: number }[] }) {
+  const maxCount = Math.max(...cells.map(c => c.count), 1);
+  const getCell = (day: number, hour: number) => cells.find(c => c.day === day && c.hour === hour);
+
+  const getColor = (count: number) => {
+    if (count === 0) return 'bg-gray-100 dark:bg-gray-700';
+    const pct = count / maxCount;
+    if (pct < 0.2) return 'bg-primary-100 dark:bg-primary-900/40';
+    if (pct < 0.4) return 'bg-primary-200 dark:bg-primary-800/60';
+    if (pct < 0.6) return 'bg-primary-400 dark:bg-primary-600';
+    if (pct < 0.8) return 'bg-primary-600 dark:bg-primary-500';
+    return 'bg-primary-700 dark:bg-primary-400';
+  };
+
+  return (
+    <div className="overflow-x-auto">
+      <div className="min-w-[600px]">
+        {/* Hour labels */}
+        <div className="flex ml-10 mb-1">
+          {HOURS.map(h => (
+            <div key={h} className="flex-1 text-center text-[10px] text-gray-400">
+              {h % 6 === 0 ? `${h}h` : ''}
+            </div>
+          ))}
+        </div>
+        {/* Rows */}
+        {DAYS.map((day, dayIdx) => (
+          <div key={day} className="flex items-center gap-0.5 mb-0.5">
+            <div className="w-9 text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 text-right pr-2">{day}</div>
+            {HOURS.map(hour => {
+              const cell = getCell(dayIdx, hour);
+              const count = cell?.count || 0;
+              return (
+                <div
+                  key={hour}
+                  className={`flex-1 h-5 rounded-sm ${getColor(count)} transition-colors cursor-default`}
+                  title={`${day} ${hour}:00 — ${count} messages`}
+                />
+              );
+            })}
+          </div>
+        ))}
+        {/* Legend */}
+        <div className="flex items-center gap-1 mt-3 ml-10">
+          <span className="text-xs text-gray-400 mr-1">Less</span>
+          {['bg-gray-100 dark:bg-gray-700', 'bg-primary-100', 'bg-primary-200', 'bg-primary-400', 'bg-primary-600', 'bg-primary-700'].map((c, i) => (
+            <div key={i} className={`w-4 h-4 rounded-sm ${c}`} />
+          ))}
+          <span className="text-xs text-gray-400 ml-1">More</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Analytics() {
   const { currentWorkspace } = useWorkspaceStore();
   const [data, setData] = useState<Analytics | null>(null);
   const [loading, setLoading] = useState(false);
+  const [heatmap, setHeatmap] = useState<{ cells: { day: number; hour: number; count: number }[]; total: number } | null>(null);
+  const [byChannel, setByChannel] = useState<any[]>([]);
+  const [byLanguage, setByLanguage] = useState<any[]>([]);
 
   useEffect(() => {
     if (!currentWorkspace) return;
     setLoading(true);
-    api.get(`/workspaces/${currentWorkspace.id}/analytics`)
-      .then(({ data }) => setData(data))
-      .catch(console.error)
-      .finally(() => setLoading(false));
+    Promise.all([
+      api.get(`/workspaces/${currentWorkspace.id}/analytics`),
+      api.get(`/workspaces/${currentWorkspace.id}/analytics/heatmap`),
+      api.get(`/workspaces/${currentWorkspace.id}/analytics/by-channel`),
+      api.get(`/workspaces/${currentWorkspace.id}/analytics/by-language`),
+    ]).then(([a, h, c, l]) => {
+      setData(a.data);
+      setHeatmap(h.data);
+      setByChannel(c.data);
+      setByLanguage(l.data);
+    }).catch(console.error).finally(() => setLoading(false));
   }, [currentWorkspace]);
 
   const maxDaily = data ? Math.max(...data.dailyMessages.map(d => d.count), 1) : 1;
@@ -151,6 +219,61 @@ export default function Analytics() {
                   </div>
                 </div>
               </div>
+              {/* Heatmap */}
+              {heatmap && heatmap.cells.length > 0 && (
+                <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
+                  <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Message Volume Heatmap</h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">Inbound messages by hour of day × day of week (last 30 days) — {heatmap.total} total</p>
+                  <HeatmapChart cells={heatmap.cells} />
+                </div>
+              )}
+
+              {/* By Channel + By Language */}
+              {(byChannel.length > 0 || byLanguage.length > 0) && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {byChannel.length > 0 && (
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+                      <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Messages by Channel</h3>
+                      {byChannel.map(ch => {
+                        const max = Math.max(...byChannel.map(c => c.total), 1);
+                        const EMOJI: Record<string, string> = { whatsapp: '💬', instagram: '📸', messenger: '💙', telegram: '✈️', email: '📧', widget: '🌐' };
+                        return (
+                          <div key={ch.channelId} className="mb-3">
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="font-medium">{EMOJI[ch.type] || '📡'} {ch.name}</span>
+                              <span className="text-gray-500 dark:text-gray-400">{ch.total.toLocaleString()}</span>
+                            </div>
+                            <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div className="h-full bg-primary-500 rounded-full" style={{ width: `${(ch.total / max) * 100}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {byLanguage.length > 0 && (
+                    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-5">
+                      <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Contacts by Language</h3>
+                      {byLanguage.slice(0, 8).map(l => {
+                        const max = Math.max(...byLanguage.map(x => x.count), 1);
+                        const FLAG: Record<string, string> = { en: '🇺🇸', es: '🇪🇸', fr: '🇫🇷', de: '🇩🇪', pt: '🇧🇷', it: '🇮🇹', ar: '🇸🇦', zh: '🇨🇳', ja: '🇯🇵', ko: '🇰🇷', hi: '🇮🇳', ru: '🇷🇺', tr: '🇹🇷', nl: '🇳🇱' };
+                        const NAMES: Record<string, string> = { en: 'English', es: 'Spanish', fr: 'French', de: 'German', pt: 'Portuguese', it: 'Italian', ar: 'Arabic', zh: 'Chinese', ja: 'Japanese', ko: 'Korean', hi: 'Hindi', ru: 'Russian', tr: 'Turkish', nl: 'Dutch', unknown: 'Unknown' };
+                        return (
+                          <div key={l.language} className="mb-3">
+                            <div className="flex items-center justify-between text-sm mb-1">
+                              <span className="font-medium">{FLAG[l.language] || '🌐'} {NAMES[l.language] || l.language}</span>
+                              <span className="text-gray-500 dark:text-gray-400">{l.count.toLocaleString()}</span>
+                            </div>
+                            <div className="h-2 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                              <div className="h-full bg-green-500 rounded-full" style={{ width: `${(l.count / max) * 100}%` }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-16 text-gray-400">Select a workspace to view analytics</div>
