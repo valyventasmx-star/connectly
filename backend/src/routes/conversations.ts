@@ -1,6 +1,8 @@
 import { Router, Response } from 'express';
 import prisma from '../lib/prisma';
 import { authenticate, requireWorkspace, AuthRequest } from '../middleware/auth';
+import { tryAutoAssign } from '../services/autoAssign';
+import { logAudit } from '../services/auditLog';
 
 const router = Router({ mergeParams: true });
 router.use(authenticate, requireWorkspace());
@@ -47,10 +49,21 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   });
   if (existing) return res.json(existing);
 
+  // Get workspace SLA hours
+  const workspace = await prisma.workspace.findUnique({
+    where: { id: req.params.workspaceId },
+    select: { slaHours: true },
+  });
+  const slaDueAt = new Date(Date.now() + (workspace?.slaHours || 24) * 60 * 60 * 1000);
+
   const conversation = await prisma.conversation.create({
-    data: { contactId, channelId, workspaceId: req.params.workspaceId, status: status || 'open' },
+    data: { contactId, channelId, workspaceId: req.params.workspaceId, status: status || 'open', slaDueAt },
     include: { contact: true, channel: true, messages: { orderBy: { createdAt: 'desc' }, take: 1 } },
   });
+
+  // Try auto-assign
+  tryAutoAssign(conversation.id, req.params.workspaceId, channelId).catch(console.error);
+
   res.status(201).json(conversation);
 });
 
@@ -97,6 +110,20 @@ router.patch('/:conversationId', async (req: AuthRequest, res: Response) => {
       conversationTags: { include: { tag: true } },
     },
   });
+
+  // Log audit
+  if (req.user && (status !== undefined || assigneeId !== undefined)) {
+    logAudit(
+      req.params.workspaceId,
+      req.user.id,
+      req.user.name,
+      status !== undefined ? `conversation.${status}` : 'conversation.updated',
+      'conversation',
+      req.params.conversationId,
+      { status, assigneeId }
+    ).catch(console.error);
+  }
+
   res.json(conversation);
 });
 

@@ -17,6 +17,7 @@ export interface Workspace {
   timezone: string;
   role?: string;
   aiEnabled?: boolean;
+  slaHours?: number;
   stripeSubscriptionId?: string;
   createdAt: string;
   _count?: { channels: number; contacts: number; conversations: number; members?: number };
@@ -95,6 +96,9 @@ export interface Conversation {
   lastMessageAt?: string;
   firstResponseAt?: string;
   snoozedUntil?: string;
+  slaDueAt?: string;
+  csatScore?: number;
+  csatSentAt?: string;
   unreadCount: number;
   createdAt: string;
   contact: Contact;
@@ -102,6 +106,46 @@ export interface Conversation {
   assignee?: Pick<User, 'id' | 'name' | 'avatar'>;
   messages?: Message[];
   conversationTags?: { tag: Tag }[];
+}
+
+export interface InboxView {
+  id: string;
+  name: string;
+  filters: string;
+  workspaceId: string;
+  userId: string;
+  createdAt: string;
+}
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  lastUsedAt?: string;
+  expiresAt?: string;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  action: string;
+  entityType: string;
+  entityId: string;
+  userId: string;
+  userName: string;
+  metadata?: string;
+  workspaceId: string;
+  createdAt: string;
+}
+
+export interface CsatResponse {
+  id: string;
+  score: number;
+  comment?: string;
+  conversationId: string;
+  contactId: string;
+  workspaceId: string;
+  createdAt: string;
 }
 
 export interface SavedResponse {

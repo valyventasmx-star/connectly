@@ -6,8 +6,9 @@ import {
   BoltIcon,
   MagnifyingGlassIcon,
   LockClosedIcon,
+  DocumentTextIcon,
 } from '@heroicons/react/24/outline';
-import { savedResponsesApi } from '../../api/client';
+import { savedResponsesApi, templatesApi } from '../../api/client';
 import { useWorkspaceStore } from '../../store/workspace';
 import { SavedResponse } from '../../types';
 
@@ -25,8 +26,13 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
   const [quickReplies, setQuickReplies] = useState<SavedResponse[]>([]);
   const [qrSearch, setQrSearch] = useState('');
   const [loadingQR, setLoadingQR] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [templateSearch, setTemplateSearch] = useState('');
+  const [loadingTpl, setLoadingTpl] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const templatePopoverRef = useRef<HTMLDivElement>(null);
   const { currentWorkspace } = useWorkspaceStore();
 
   useEffect(() => {
@@ -38,6 +44,31 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
     if (showQuickReplies) document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showQuickReplies]);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (templatePopoverRef.current && !templatePopoverRef.current.contains(e.target as Node)) {
+        setShowTemplates(false);
+      }
+    };
+    if (showTemplates) document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showTemplates]);
+
+  const openTemplates = async () => {
+    if (!currentWorkspace) return;
+    setShowTemplates(true);
+    setTemplateSearch('');
+    setLoadingTpl(true);
+    try {
+      const { data } = await templatesApi.list(currentWorkspace.id);
+      setTemplates(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingTpl(false);
+    }
+  };
 
   const openQuickReplies = async () => {
     if (!currentWorkspace) return;
@@ -138,6 +169,61 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
           >
             <BoltIcon className="w-5 h-5" />
           </button>
+          {/* WA Templates */}
+          <div className="relative" ref={templatePopoverRef}>
+            <button
+              onClick={openTemplates}
+              disabled={disabled || isNote}
+              className="text-gray-400 hover:text-green-600 transition-colors disabled:opacity-40"
+              title="WhatsApp Templates"
+            >
+              <DocumentTextIcon className="w-5 h-5" />
+            </button>
+            {showTemplates && (
+              <div className="absolute bottom-10 left-0 w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                <div className="p-3 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">WA Templates</p>
+                  <div className="relative">
+                    <MagnifyingGlassIcon className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400" />
+                    <input
+                      autoFocus
+                      className="w-full pl-8 pr-3 py-1.5 text-sm bg-gray-50 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Search templates..."
+                      value={templateSearch}
+                      onChange={(e) => setTemplateSearch(e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {loadingTpl ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  ) : templates.filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase())).length === 0 ? (
+                    <div className="py-6 text-center text-sm text-gray-500">
+                      {templates.length === 0 ? 'No templates yet. Add in Settings → Templates.' : 'No matches'}
+                    </div>
+                  ) : (
+                    templates
+                      .filter(t => !templateSearch || t.name.toLowerCase().includes(templateSearch.toLowerCase()))
+                      .map((t) => (
+                        <button
+                          key={t.id}
+                          onClick={() => { insertResponse(t.content); setShowTemplates(false); }}
+                          className="w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-50 last:border-0 transition-colors"
+                        >
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="text-sm font-medium text-gray-900 truncate">{t.name}</p>
+                            <span className="text-[10px] bg-green-50 text-green-600 px-2 py-0.5 rounded-full flex-shrink-0">{t.category}</span>
+                          </div>
+                          <p className="text-xs text-gray-500 line-clamp-2">{t.content}</p>
+                        </button>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           {/* Note mode toggle */}
           <button
             onClick={() => setNoteMode((v) => !v)}

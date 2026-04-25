@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, PlusIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, PlusIcon, BookmarkIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useWorkspaceStore } from '../../store/workspace';
 import { useAuthStore } from '../../store/auth';
-import { conversationsApi } from '../../api/client';
+import { conversationsApi, inboxViewsApi } from '../../api/client';
 import { Conversation } from '../../types';
 import ConversationItem from './ConversationItem';
 import Button from '../ui/Button';
@@ -27,11 +27,43 @@ export default function ConversationList({ onNewConversation }: Props) {
   const [statusFilter, setStatusFilter] = useState<string>('open');
   const [assignFilter, setAssignFilter] = useState<string>('all');
   const [loading, setLoading] = useState(false);
+  const [savedViews, setSavedViews] = useState<any[]>([]);
+  const [activeView, setActiveView] = useState<string | null>(null);
+  const [showSaveView, setShowSaveView] = useState(false);
+  const [viewName, setViewName] = useState('');
 
   useEffect(() => {
     if (!currentWorkspace) return;
     loadConversations();
+    inboxViewsApi.list(currentWorkspace.id).then(r => setSavedViews(r.data)).catch(() => {});
   }, [currentWorkspace, statusFilter, assignFilter]);
+
+  const applyView = (view: any) => {
+    const filters = JSON.parse(view.filters);
+    setActiveView(view.id);
+    if (filters.status) setStatusFilter(filters.status);
+    if (filters.assigneeId === 'mine' && user) setAssignFilter('mine');
+    else if (filters.assigneeId === 'null') setAssignFilter('unassigned');
+    else setAssignFilter('all');
+  };
+
+  const saveCurrentView = async () => {
+    if (!currentWorkspace || !viewName.trim()) return;
+    const filters: any = { status: statusFilter };
+    if (assignFilter === 'mine') filters.assigneeId = 'mine';
+    else if (assignFilter === 'unassigned') filters.assigneeId = 'null';
+    const { data } = await inboxViewsApi.create(currentWorkspace.id, viewName.trim(), filters);
+    setSavedViews(v => [...v, data]);
+    setViewName('');
+    setShowSaveView(false);
+  };
+
+  const deleteView = async (viewId: string) => {
+    if (!currentWorkspace) return;
+    await inboxViewsApi.delete(currentWorkspace.id, viewId);
+    setSavedViews(v => v.filter(vw => vw.id !== viewId));
+    if (activeView === viewId) setActiveView(null);
+  };
 
   useEffect(() => {
     const handler = () => {
@@ -68,10 +100,31 @@ export default function ConversationList({ onNewConversation }: Props) {
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-gray-900">Conversations</h2>
-          <Button size="xs" variant="ghost" icon={<PlusIcon className="w-4 h-4" />} onClick={onNewConversation}>
-            New
-          </Button>
+          <div className="flex items-center gap-1">
+            <Button size="xs" variant="ghost" icon={<BookmarkIcon className="w-3.5 h-3.5" />}
+              onClick={() => setShowSaveView(v => !v)} title="Save current view">
+              {!showSaveView ? '' : ''}
+            </Button>
+            <Button size="xs" variant="ghost" icon={<PlusIcon className="w-4 h-4" />} onClick={onNewConversation}>
+              New
+            </Button>
+          </div>
         </div>
+        {showSaveView && (
+          <div className="flex gap-2 mb-2">
+            <input
+              autoFocus
+              className="flex-1 text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-500"
+              placeholder="View name..."
+              value={viewName}
+              onChange={e => setViewName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') saveCurrentView(); if (e.key === 'Escape') setShowSaveView(false); }}
+            />
+            <button onClick={saveCurrentView} className="text-xs bg-primary-600 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors">
+              Save
+            </button>
+          </div>
+        )}
         {/* Search */}
         <div className="relative">
           <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -83,6 +136,23 @@ export default function ConversationList({ onNewConversation }: Props) {
           />
         </div>
       </div>
+
+      {/* Saved Views */}
+      {savedViews.length > 0 && (
+        <div className="px-3 py-2 border-b border-gray-100 flex items-center gap-1.5 overflow-x-auto">
+          {savedViews.map(view => (
+            <div key={view.id} className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium flex-shrink-0 cursor-pointer transition-colors ${
+              activeView === view.id ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+              <BookmarkIcon className="w-3 h-3" />
+              <span onClick={() => applyView(view)}>{view.name}</span>
+              <button onClick={() => deleteView(view.id)} className="ml-0.5 hover:text-red-500 transition-colors">
+                <XMarkIcon className="w-3 h-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Assignment filter */}
       <div className="flex border-b border-gray-100 px-2 bg-gray-50">

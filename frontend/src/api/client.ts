@@ -129,12 +129,6 @@ export const contactActivityApi = {
     api.post(`/workspaces/${workspaceId}/contacts/${contactId}/activity`, data),
 };
 
-// Search
-export const searchApi = {
-  search: (workspaceId: string, q: string) =>
-    api.get(`/workspaces/${workspaceId}/search`, { params: { q } }),
-};
-
 // Reactions
 export const reactionsApi = {
   toggle: (workspaceId: string, conversationId: string, messageId: string, emoji: string) =>
@@ -166,6 +160,55 @@ export const outboundWebhooksApi = {
   create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/outbound-webhooks`, data),
   update: (workspaceId: string, id: string, data: any) => api.patch(`/workspaces/${workspaceId}/outbound-webhooks/${id}`, data),
   delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/outbound-webhooks/${id}`),
+};
+
+// Dashboard
+export const dashboardApi = {
+  get: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/dashboard`),
+};
+
+// Inbox Views
+export const inboxViewsApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/inbox-views`),
+  create: (workspaceId: string, name: string, filters: any) =>
+    api.post(`/workspaces/${workspaceId}/inbox-views`, { name, filters }),
+  delete: (workspaceId: string, viewId: string) =>
+    api.delete(`/workspaces/${workspaceId}/inbox-views/${viewId}`),
+};
+
+// API Keys
+export const apiKeysApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/api-keys`),
+  create: (workspaceId: string, name: string, expiresAt?: string) =>
+    api.post(`/workspaces/${workspaceId}/api-keys`, { name, expiresAt }),
+  delete: (workspaceId: string, keyId: string) =>
+    api.delete(`/workspaces/${workspaceId}/api-keys/${keyId}`),
+};
+
+// Audit Log
+export const auditLogApi = {
+  list: (workspaceId: string, params?: any) =>
+    api.get(`/workspaces/${workspaceId}/audit-log`, { params }),
+};
+
+// Auto-assign Rules
+export const autoAssignApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/auto-assign-rules`),
+  create: (workspaceId: string, data: any) =>
+    api.post(`/workspaces/${workspaceId}/auto-assign-rules`, data),
+  update: (workspaceId: string, id: string, data: any) =>
+    api.patch(`/workspaces/${workspaceId}/auto-assign-rules/${id}`, data),
+  delete: (workspaceId: string, id: string) =>
+    api.delete(`/workspaces/${workspaceId}/auto-assign-rules/${id}`),
+};
+
+// CSAT
+export const csatApi = {
+  get: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/csat`),
+  submit: (conversationId: string, score: number, comment?: string) =>
+    api.post(`/csat/submit`, { conversationId, score, comment }),
+  send: (workspaceId: string, conversationId: string) =>
+    api.post(`/workspaces/${workspaceId}/csat/send/${conversationId}`),
 };
 
 // Reports

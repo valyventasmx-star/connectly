@@ -14,6 +14,8 @@ import Admin from './pages/Admin';
 import Legal from './pages/Legal';
 import Broadcasts from './pages/Broadcasts';
 import Reports from './pages/Reports';
+import Dashboard from './pages/Dashboard';
+import ContactDetail from './pages/ContactDetail';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -42,8 +44,10 @@ export default function App() {
         <Route path="/admin" element={<ProtectedRoute><Admin /></ProtectedRoute>} />
         <Route path="/broadcasts" element={<ProtectedRoute><Broadcasts /></ProtectedRoute>} />
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/contacts/:contactId" element={<ProtectedRoute><ContactDetail /></ProtectedRoute>} />
         <Route path="/legal" element={<Legal />} />
-        <Route path="*" element={<Navigate to="/inbox" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
   );

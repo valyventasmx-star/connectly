@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import { useAuthStore } from '../store/auth';
 import { useWorkspaceStore } from '../store/workspace';
-import { authApi, savedResponsesApi, customFieldsApi, templatesApi, outboundWebhooksApi, channelsApi } from '../api/client';
+import {
+  authApi, savedResponsesApi, customFieldsApi, templatesApi, outboundWebhooksApi, channelsApi,
+  apiKeysApi, auditLogApi, autoAssignApi, workspacesApi,
+} from '../api/client';
 import { SavedResponse, CustomField, WhatsAppTemplate, OutboundWebhook, Channel } from '../types';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import Avatar from '../components/ui/Avatar';
-import { PlusIcon, PencilIcon, TrashIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { PlusIcon, PencilIcon, TrashIcon, GlobeAltIcon, ClipboardDocumentIcon, KeyIcon } from '@heroicons/react/24/outline';
+import { format } from 'date-fns';
 
 const WEBHOOK_EVENTS = [
   'conversation.created', 'conversation.resolved', 'conversation.assigned',
@@ -23,7 +27,7 @@ export default function Settings() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
-  const [tab, setTab] = useState<'profile' | 'password' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks'>('profile');
+  const [tab, setTab] = useState<'profile' | 'password' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks' | 'api-keys' | 'audit-log' | 'auto-assign' | 'business-hours'>('profile');
 
   // Saved responses
   const [responses, setResponses] = useState<SavedResponse[]>([]);
@@ -52,6 +56,27 @@ export default function Settings() {
   const [whkForm, setWhkForm] = useState({ name: '', url: '', events: [] as string[], secret: '' });
   const [showWhkForm, setShowWhkForm] = useState(false);
   const [savingWhk, setSavingWhk] = useState(false);
+
+  // API Keys
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [savingKey, setSavingKey] = useState(false);
+
+  // Audit log
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditLoading, setAuditLoading] = useState(false);
+
+  // Auto-assign rules
+  const [autoRules, setAutoRules] = useState<any[]>([]);
+  const [ruleForm, setRuleForm] = useState({ name: '', strategy: 'round_robin', assigneeIds: '' });
+  const [showRuleForm, setShowRuleForm] = useState(false);
+  const [savingRule, setSavingRule] = useState(false);
+  const [members, setMembers] = useState<any[]>([]);
+
+  // Business hours / SLA
+  const [slaHours, setSlaHours] = useState(24);
+  const [savingSla, setSavingSla] = useState(false);
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -115,6 +140,27 @@ export default function Settings() {
     if (tab === 'webhooks') {
       outboundWebhooksApi.list(currentWorkspace.id).then(({ data }) => setWebhooks(data)).catch(console.error);
     }
+    if (tab === 'api-keys') {
+      apiKeysApi.list(currentWorkspace.id).then(({ data }) => setApiKeys(data)).catch(console.error);
+    }
+    if (tab === 'audit-log') {
+      setAuditLoading(true);
+      auditLogApi.list(currentWorkspace.id).then(({ data }) => setAuditLogs(data.logs || [])).catch(console.error).finally(() => setAuditLoading(false));
+    }
+    if (tab === 'auto-assign') {
+      autoAssignApi.list(currentWorkspace.id).then(({ data }) => setAutoRules(data)).catch(console.error);
+      workspacesApi.get(currentWorkspace.id).then(({ data }) => {
+        // Get members via workspace
+        setSlaHours(data.slaHours || 24);
+      }).catch(console.error);
+      // Load members
+      import('../api/client').then(({ workspacesApi: wApi }) => {
+        // members via workspaces API
+      });
+    }
+    if (tab === 'business-hours') {
+      workspacesApi.get(currentWorkspace.id).then(({ data }) => setSlaHours(data.slaHours || 24)).catch(console.error);
+    }
   }, [tab, currentWorkspace]);
 
   const resetForm = () => {
@@ -152,6 +198,49 @@ export default function Settings() {
     setResponses(prev => prev.filter(r => r.id !== id));
   };
 
+  const createApiKey = async () => {
+    if (!currentWorkspace || !newKeyName.trim()) return;
+    setSavingKey(true);
+    try {
+      const { data } = await apiKeysApi.create(currentWorkspace.id, newKeyName.trim());
+      setApiKeys(prev => [data, ...prev]);
+      setCreatedKey(data.key);
+      setNewKeyName('');
+    } finally {
+      setSavingKey(false);
+    }
+  };
+
+  const deleteApiKey = async (id: string) => {
+    if (!currentWorkspace || !confirm('Revoke this API key?')) return;
+    await apiKeysApi.delete(currentWorkspace.id, id);
+    setApiKeys(prev => prev.filter(k => k.id !== id));
+  };
+
+  const createAutoRule = async () => {
+    if (!currentWorkspace || !ruleForm.name || !ruleForm.assigneeIds) return;
+    setSavingRule(true);
+    try {
+      const assigneeIds = ruleForm.assigneeIds.split(',').map(s => s.trim()).filter(Boolean);
+      const { data } = await autoAssignApi.create(currentWorkspace.id, { ...ruleForm, assigneeIds });
+      setAutoRules(prev => [...prev, data]);
+      setRuleForm({ name: '', strategy: 'round_robin', assigneeIds: '' });
+      setShowRuleForm(false);
+    } finally {
+      setSavingRule(false);
+    }
+  };
+
+  const saveSlaHours = async () => {
+    if (!currentWorkspace) return;
+    setSavingSla(true);
+    try {
+      await workspacesApi.update(currentWorkspace.id, { slaHours });
+    } finally {
+      setSavingSla(false);
+    }
+  };
+
   const tabs = [
     { key: 'profile', label: 'Profile' },
     { key: 'password', label: 'Password' },
@@ -160,6 +249,10 @@ export default function Settings() {
     { key: 'custom-fields', label: 'Custom Fields' },
     { key: 'templates', label: 'WA Templates' },
     { key: 'webhooks', label: 'Webhooks' },
+    { key: 'auto-assign', label: 'Auto-assign' },
+    { key: 'business-hours', label: 'SLA & Hours' },
+    { key: 'api-keys', label: 'API Keys' },
+    { key: 'audit-log', label: 'Audit Log' },
   ] as const;
 
   return (
@@ -638,6 +731,194 @@ export default function Settings() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Auto-assign Rules */}
+            {tab === 'auto-assign' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Auto-assignment Rules</h3>
+                    <p className="text-xs text-gray-500 mt-0.5">Automatically assign new conversations to agents</p>
+                  </div>
+                  <Button size="sm" icon={<PlusIcon className="w-4 h-4" />} onClick={() => setShowRuleForm(true)}>Add Rule</Button>
+                </div>
+                {showRuleForm && (
+                  <div className="border border-gray-200 rounded-xl p-4 bg-gray-50 space-y-3">
+                    <Input label="Rule name" placeholder="e.g. Sales team" value={ruleForm.name}
+                      onChange={e => setRuleForm(f => ({ ...f, name: e.target.value }))} />
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Strategy</label>
+                      <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                        value={ruleForm.strategy} onChange={e => setRuleForm(f => ({ ...f, strategy: e.target.value }))}>
+                        <option value="round_robin">Round Robin</option>
+                        <option value="least_loaded">Least Loaded</option>
+                      </select>
+                    </div>
+                    <Input label="Agent user IDs (comma-separated)" placeholder="user1id, user2id"
+                      value={ruleForm.assigneeIds} onChange={e => setRuleForm(f => ({ ...f, assigneeIds: e.target.value }))} />
+                    <div className="flex gap-2">
+                      <Button size="sm" onClick={createAutoRule} loading={savingRule}>Save Rule</Button>
+                      <Button size="sm" variant="outline" onClick={() => setShowRuleForm(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                )}
+                {autoRules.length === 0 && !showRuleForm ? (
+                  <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">No rules yet</div>
+                ) : (
+                  <div className="space-y-3">
+                    {autoRules.map(rule => (
+                      <div key={rule.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{rule.name}</p>
+                          <p className="text-xs text-gray-500">{rule.strategy} · {rule.assigneeIds?.length || 0} agents</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={async () => {
+                            if (!currentWorkspace) return;
+                            await autoAssignApi.update(currentWorkspace.id, rule.id, { active: !rule.active });
+                            setAutoRules(prev => prev.map(r => r.id === rule.id ? { ...r, active: !r.active } : r));
+                          }} className={`text-xs px-2 py-1 rounded-lg font-medium transition-colors ${rule.active ? 'text-yellow-600 hover:bg-yellow-50' : 'text-green-600 hover:bg-green-50'}`}>
+                            {rule.active ? 'Pause' : 'Enable'}
+                          </button>
+                          <button onClick={async () => {
+                            if (!currentWorkspace) return;
+                            await autoAssignApi.delete(currentWorkspace.id, rule.id);
+                            setAutoRules(prev => prev.filter(r => r.id !== rule.id));
+                          }} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg">
+                            <TrashIcon className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Business Hours / SLA */}
+            {tab === 'business-hours' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">SLA Configuration</h3>
+                  <p className="text-xs text-gray-500 mb-4">Set the default time before a conversation is considered overdue</p>
+                  <div className="flex items-center gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">SLA hours</label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number" min="1" max="720"
+                          className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          value={slaHours}
+                          onChange={e => setSlaHours(parseInt(e.target.value) || 24)}
+                        />
+                        <span className="text-sm text-gray-500">hours</span>
+                      </div>
+                    </div>
+                    <Button size="sm" onClick={saveSlaHours} loading={savingSla} className="mt-5">Save</Button>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">New conversations will show an SLA timer based on this setting.</p>
+                </div>
+                <div className="border-t border-gray-100 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Business Hours</h3>
+                  <p className="text-xs text-gray-500">Business hours configuration coming soon. SLA timers will respect your team's working hours.</p>
+                </div>
+              </div>
+            )}
+
+            {/* API Keys */}
+            {tab === 'api-keys' && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">API Keys</h3>
+                  <p className="text-xs text-gray-500">Create API keys to access the Connectly API programmatically</p>
+                </div>
+                {createdKey && (
+                  <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+                    <p className="text-xs font-semibold text-green-800 mb-2">✅ API key created — copy it now, it won't be shown again</p>
+                    <div className="flex items-center gap-2">
+                      <code className="flex-1 text-xs bg-white border border-green-200 rounded-lg px-3 py-2 font-mono break-all">{createdKey}</code>
+                      <button onClick={() => { navigator.clipboard.writeText(createdKey); }} className="p-2 hover:bg-green-100 rounded-lg text-green-700 flex-shrink-0">
+                        <ClipboardDocumentIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <button onClick={() => setCreatedKey(null)} className="text-xs text-green-600 mt-2 hover:underline">Dismiss</button>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  <input
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                    placeholder="Key name (e.g. Production, Zapier)"
+                    value={newKeyName}
+                    onChange={e => setNewKeyName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && createApiKey()}
+                  />
+                  <Button size="sm" onClick={createApiKey} loading={savingKey} disabled={!newKeyName.trim()} icon={<KeyIcon className="w-4 h-4" />}>
+                    Create
+                  </Button>
+                </div>
+                {apiKeys.length === 0 ? (
+                  <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">No API keys yet</div>
+                ) : (
+                  <div className="space-y-3">
+                    {apiKeys.map(k => (
+                      <div key={k.id} className="bg-white border border-gray-200 rounded-xl p-4 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold text-gray-900">{k.name}</p>
+                          <code className="text-xs text-gray-500 font-mono">{k.keyPrefix}••••••••••••••••••••</code>
+                          {k.lastUsedAt && (
+                            <p className="text-xs text-gray-400 mt-0.5">Last used {format(new Date(k.lastUsedAt), 'MMM d, yyyy')}</p>
+                          )}
+                        </div>
+                        <button onClick={() => deleteApiKey(k.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg flex-shrink-0">
+                          <TrashIcon className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Audit Log */}
+            {tab === 'audit-log' && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Audit Log</h3>
+                  <p className="text-xs text-gray-500">Track actions performed in this workspace</p>
+                </div>
+                {auditLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : auditLogs.length === 0 ? (
+                  <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">No activity recorded yet</div>
+                ) : (
+                  <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          {['Action', 'User', 'Entity', 'Date'].map(h => (
+                            <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {auditLogs.map(log => (
+                          <tr key={log.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3">
+                              <span className="text-xs font-medium text-gray-800 bg-gray-100 px-2 py-0.5 rounded-full">{log.action}</span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-700">{log.userName}</td>
+                            <td className="px-4 py-3 text-xs text-gray-500 font-mono truncate max-w-[120px]">{log.entityId.slice(0, 12)}…</td>
+                            <td className="px-4 py-3 text-xs text-gray-400">{format(new Date(log.createdAt), 'MMM d, h:mm a')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </div>

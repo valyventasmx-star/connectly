@@ -13,6 +13,26 @@ function requestNotificationPermission() {
   }
 }
 
+// Sound alert using Web Audio API (no external files needed)
+let audioCtx: AudioContext | null = null;
+function playNotificationSound() {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(660, audioCtx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.3);
+  } catch (e) {
+    // Audio not available
+  }
+}
+
 function showBrowserNotification(title: string, body: string) {
   if ('Notification' in window && Notification.permission === 'granted' && document.hidden) {
     const n = new Notification(title, {
@@ -79,11 +99,15 @@ export function useSocket() {
         window.dispatchEvent(new CustomEvent('new_message', { detail: data.message }));
       }
 
-      // Browser notification for inbound messages from other contacts
+      // Browser notification + sound for inbound messages
       if (data.message.direction === 'inbound' && !data.message.isNote) {
         const conv = state.conversations.find(c => c.id === data.conversationId);
         const contactName = conv?.contact?.name || 'New message';
         showBrowserNotification(contactName, data.message.content);
+        // Sound alert (only if not in the active conversation)
+        if (state.activeConversation?.id !== data.conversationId) {
+          playNotificationSound();
+        }
       }
     };
 

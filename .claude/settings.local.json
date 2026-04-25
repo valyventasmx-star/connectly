@@ -17,7 +17,9 @@
       "Bash(git add *)",
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:MkvMHdSLSIxqLJLVCFTOJIbuCaGjjOrl@switchback.proxy.rlwy.net:44983/railway\" npx prisma db push)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:MkvMHdSLSIxqLJLVCFTOJIbuCaGjjOrl@switchback.proxy.rlwy.net:44983/railway\" npx prisma db push)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:MkvMHdSLSIxqLJLVCFTOJIbuCaGjjOrl@switchback.proxy.rlwy.net:44983/railway\" npx prisma db push --accept-data-loss)",
+      "Bash(npx tsc *)"
     ]
   }
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
-import { reportsApi } from '../api/client';
+import { reportsApi, csatApi } from '../api/client';
 import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
 const STAGES = [
@@ -12,7 +12,7 @@ const STAGES = [
   { key: 'cold_lead', label: 'Cold Lead', color: 'bg-gray-400', emoji: '❄️' },
 ];
 
-type TabKey = 'lifecycle' | 'conversations' | 'leaderboard' | 'tags';
+type TabKey = 'lifecycle' | 'conversations' | 'leaderboard' | 'tags' | 'csat';
 
 export default function Reports() {
   const { currentWorkspace } = useWorkspaceStore();
@@ -22,6 +22,7 @@ export default function Reports() {
   const [conversations, setConversations] = useState<any>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
+  const [csat, setCsat] = useState<any>(null);
 
   useEffect(() => {
     if (!currentWorkspace) return;
@@ -31,6 +32,7 @@ export default function Reports() {
       reportsApi.conversations(currentWorkspace.id).then(r => setConversations(r.data)),
       reportsApi.leaderboard(currentWorkspace.id).then(r => setLeaderboard(r.data)),
       reportsApi.tags(currentWorkspace.id).then(r => setTags(r.data)),
+      csatApi.get(currentWorkspace.id).then(r => setCsat(r.data)),
     ];
     Promise.all(fetchers).catch(console.error).finally(() => setLoading(false));
   }, [currentWorkspace]);
@@ -41,6 +43,7 @@ export default function Reports() {
     { key: 'conversations', label: 'Conversations' },
     { key: 'leaderboard', label: 'Leaderboard' },
     { key: 'tags', label: 'Tags' },
+    { key: 'csat', label: 'CSAT' },
   ];
 
   const maxLifecycle = lifecycle ? Math.max(...lifecycle.funnel.map((s: any) => s.count), 1) : 1;
@@ -257,6 +260,72 @@ export default function Reports() {
                           ))}
                         </div>
                       </div>
+                    </>
+                  )}
+                </div>
+              )}
+              {/* CSAT */}
+              {tab === 'csat' && (
+                <div className="space-y-6">
+                  {!csat || csat.total === 0 ? (
+                    <div className="text-center py-16 text-gray-400 text-sm">No CSAT responses yet</div>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                          <p className="text-2xl font-bold text-gray-900">{csat.total}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Total responses</p>
+                        </div>
+                        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                          <p className="text-2xl font-bold text-primary-600">{csat.avg ?? '—'}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">Avg. score (1–5)</p>
+                        </div>
+                        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+                          <p className="text-2xl font-bold text-green-600">
+                            {csat.total ? Math.round((csat.distribution?.filter((d: any) => d.score >= 4).reduce((s: number, d: any) => s + d.count, 0) / csat.total) * 100) : 0}%
+                          </p>
+                          <p className="text-xs text-gray-500 mt-0.5">Satisfied (4–5 stars)</p>
+                        </div>
+                      </div>
+                      <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                        <h3 className="text-sm font-semibold text-gray-900 mb-6">Score Distribution</h3>
+                        <div className="space-y-3">
+                          {(csat.distribution || []).map((d: any) => {
+                            const max = Math.max(...(csat.distribution || []).map((x: any) => x.count), 1);
+                            const stars = '⭐'.repeat(d.score);
+                            return (
+                              <div key={d.score} className="flex items-center gap-4">
+                                <div className="w-16 text-right text-xs font-medium text-gray-600">{stars}</div>
+                                <div className="flex-1 bg-gray-100 rounded-full h-6 relative">
+                                  <div
+                                    className="h-6 rounded-full bg-primary-400 flex items-center justify-end pr-2"
+                                    style={{ width: `${Math.max((d.count / max) * 100, d.count > 0 ? 4 : 0)}%` }}
+                                  >
+                                    {d.count > 0 && <span className="text-[10px] font-bold text-white">{d.count}</span>}
+                                  </div>
+                                </div>
+                                <div className="w-12 text-xs text-gray-400">{d.count}</div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      {csat.responses?.filter((r: any) => r.comment).length > 0 && (
+                        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                          <h3 className="text-sm font-semibold text-gray-900 mb-4">Recent Comments</h3>
+                          <div className="space-y-3">
+                            {csat.responses.filter((r: any) => r.comment).slice(0, 10).map((r: any) => (
+                              <div key={r.id} className="border-b border-gray-50 pb-3 last:border-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs">{'⭐'.repeat(r.score)}</span>
+                                  <span className="text-xs text-gray-400">{new Date(r.createdAt).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-sm text-gray-700">{r.comment}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
                 </div>

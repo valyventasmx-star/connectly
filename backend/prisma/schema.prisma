@@ -35,6 +35,8 @@ model Workspace {
   planExpiresAt        DateTime?
   aiEnabled            Boolean   @default(false)
   aiPrompt             String?
+  slaHours             Int       @default(24)
+  businessHours        String?   // JSON: [{day:0,start:"09:00",end:"18:00",enabled:true}]
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -48,6 +50,10 @@ model Workspace {
   customFields      CustomField[]
   outboundWebhooks  OutboundWebhook[]
   templates         WhatsAppTemplate[]
+  inboxViews        InboxView[]
+  autoAssignRules   AutoAssignRule[]
+  apiKeys           ApiKey[]
+  auditLogs         AuditLog[]
 }
 
 model Broadcast {
@@ -177,6 +183,9 @@ model Conversation {
   lastMessageAt   DateTime?
   firstResponseAt DateTime?
   snoozedUntil    DateTime?
+  slaDueAt        DateTime?
+  csatScore       Int?
+  csatSentAt      DateTime?
   unreadCount     Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
@@ -187,6 +196,7 @@ model Conversation {
   assignee         User?             @relation("AssignedTo", fields: [assigneeId], references: [id])
   messages         Message[]
   conversationTags ConversationTag[]
+  csatResponses    CsatResponse[]
 }
 
 model SavedResponse {
@@ -294,6 +304,7 @@ model Message {
   mediaType      String?
   isAiReply      Boolean  @default(false)
   isNote         Boolean  @default(false)
+  mentions       String?  // JSON array of user IDs mentioned
   conversationId String
   senderId       String?
   senderName     String?
@@ -301,4 +312,70 @@ model Message {
 
   conversation Conversation      @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   reactions    MessageReaction[]
+}
+
+model InboxView {
+  id          String   @id @default(cuid())
+  name        String
+  filters     String   // JSON: {status, assigneeId, channelId, tagId}
+  workspaceId String
+  userId      String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AutoAssignRule {
+  id          String   @id @default(cuid())
+  name        String
+  strategy    String   @default("round_robin") // round_robin, least_loaded
+  channelId   String?
+  tagId       String?
+  active      Boolean  @default(true)
+  workspaceId String
+  assigneeIds String   // JSON array of user IDs
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id          String    @id @default(cuid())
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String    // first 8 chars for display
+  workspaceId String
+  userId      String
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // e.g. "conversation.resolved", "contact.updated"
+  entityType  String
+  entityId    String
+  userId      String
+  userName    String
+  metadata    String?  // JSON
+  workspaceId String
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CsatResponse {
+  id             String   @id @default(cuid())
+  score          Int      // 1-5
+  comment        String?
+  conversationId String
+  contactId      String
+  workspaceId    String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 }

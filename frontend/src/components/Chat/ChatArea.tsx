@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Conversation, Message } from '../../types';
-import { messagesApi } from '../../api/client';
+import { messagesApi, csatApi } from '../../api/client';
 import { useWorkspaceStore } from '../../store/workspace';
 import { getSocket } from '../../hooks/useSocket';
 import MessageBubble from './MessageBubble';
@@ -8,7 +8,7 @@ import ChatInput from './ChatInput';
 import ContactPanel from './ContactPanel';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
-import { InformationCircleIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 interface Props {
@@ -129,6 +129,35 @@ export default function ChatArea({ conversation }: Props) {
     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
   };
 
+  const handleSendCsat = async () => {
+    if (!currentWorkspace) return;
+    try {
+      await csatApi.send(currentWorkspace.id, conversation.id);
+      alert('CSAT survey link sent to contact ✅');
+    } catch {
+      alert('Failed to send CSAT');
+    }
+  };
+
+  const handleExportConversation = () => {
+    const lines = [`Conversation with ${conversation.contact.name}`, `Status: ${conversation.status}`, `Channel: ${conversation.channel?.name}`, '---', ''];
+    messages.forEach(m => {
+      const dir = m.direction === 'inbound' ? `[${conversation.contact.name}]` : '[Agent]';
+      const note = m.isNote ? ' (internal note)' : '';
+      const time = new Date(m.createdAt).toLocaleString();
+      lines.push(`${dir}${note} ${time}`);
+      lines.push(m.content);
+      lines.push('');
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `conversation-${conversation.id.slice(0, 8)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const shouldShowDate = (idx: number) => {
     if (idx === 0) return true;
     const prev = new Date(messages[idx - 1].createdAt);
@@ -161,10 +190,26 @@ export default function ChatArea({ conversation }: Props) {
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
               via {conversation.channel?.name}
             </span>
+            {conversation.status === 'resolved' && (
+              <button
+                onClick={handleSendCsat}
+                className="p-1.5 rounded-lg text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 transition-colors"
+                title="Send CSAT survey"
+              >
+                <StarIcon className="w-5 h-5" />
+              </button>
+            )}
+            <button
+              onClick={handleExportConversation}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+              title="Export conversation"
+            >
+              <ArrowDownTrayIcon className="w-5 h-5" />
+            </button>
             <button
               onClick={() => setShowPanel((v) => !v)}
               className={`p-1.5 rounded-lg transition-colors ${showPanel ? 'bg-primary-50 text-primary-600' : 'text-gray-400 hover:bg-gray-100'}`}
-              title="Toggle contact panel (shortcut: i)"
+              title="Toggle contact panel"
             >
               <InformationCircleIcon className="w-5 h-5" />
             </button>

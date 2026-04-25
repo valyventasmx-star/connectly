@@ -3,6 +3,28 @@ import { Conversation } from '../../types';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
 
+function SlaIndicator({ slaDueAt, status }: { slaDueAt?: string; status: string }) {
+  if (!slaDueAt || status !== 'open') return null;
+  const due = new Date(slaDueAt);
+  const now = new Date();
+  const diffMs = due.getTime() - now.getTime();
+  const isOverdue = diffMs < 0;
+  const hours = Math.abs(Math.floor(diffMs / 3600000));
+  const mins = Math.abs(Math.floor((diffMs % 3600000) / 60000));
+  const label = isOverdue
+    ? `${hours > 0 ? hours + 'h ' : ''}${mins}m overdue`
+    : `${hours > 0 ? hours + 'h ' : ''}${mins}m left`;
+  return (
+    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium flex-shrink-0 ${
+      isOverdue ? 'bg-red-100 text-red-600' :
+      diffMs < 3600000 ? 'bg-orange-100 text-orange-600' :
+      'bg-gray-100 text-gray-500'
+    }`}>
+      ⏱ {label}
+    </span>
+  );
+}
+
 interface Props {
   conversation: Conversation;
   active: boolean;
@@ -55,16 +77,17 @@ export default function ConversationItem({ conversation, active, onClick }: Prop
             )}
           </div>
         </div>
-        {/* Tags */}
-        {conversation.conversationTags && conversation.conversationTags.length > 0 && (
-          <div className="flex gap-1 mt-1 flex-wrap">
-            {conversation.conversationTags.slice(0, 2).map(({ tag }) => (
+        {/* SLA + Tags */}
+        <div className="flex gap-1 mt-1 flex-wrap items-center">
+          <SlaIndicator slaDueAt={(conversation as any).slaDueAt} status={conversation.status} />
+          {conversation.conversationTags && conversation.conversationTags.length > 0 &&
+            conversation.conversationTags.slice(0, 2).map(({ tag }) => (
               <span key={tag.id} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ backgroundColor: tag.color + '20', color: tag.color }}>
                 {tag.name}
               </span>
-            ))}
-          </div>
-        )}
+            ))
+          }
+        </div>
       </div>
     </div>
   );

@@ -14,13 +14,18 @@ import {
   MegaphoneIcon,
   DocumentChartBarIcon,
   MagnifyingGlassIcon,
+  HomeIcon,
+  MoonIcon,
+  SunIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
+import { useThemeStore } from '../../store/theme';
 import Avatar from '../ui/Avatar';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
 
 const navItems = [
+  { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
   { to: '/inbox', icon: InboxIcon, label: 'Inbox' },
   { to: '/contacts', icon: UserGroupIcon, label: 'Contacts' },
   { to: '/channels', icon: PhoneIcon, label: 'Channels' },
@@ -33,6 +38,7 @@ const navItems = [
 export default function Sidebar() {
   const { user, logout } = useAuthStore();
   const { currentWorkspace } = useWorkspaceStore();
+  const { isDark, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -91,6 +97,9 @@ export default function Sidebar() {
               <ShieldCheckIcon className="w-5 h-5" />
             </NavLink>
           )}
+          <button onClick={toggleTheme} title={isDark ? 'Switch to light mode' : 'Switch to dark mode'} className="sidebar-icon">
+            {isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
+          </button>
           <NavLink to="/settings" title="Settings" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
             <Cog6ToothIcon className="w-5 h-5" />
           </NavLink>
