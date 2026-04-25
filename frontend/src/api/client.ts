@@ -228,4 +228,46 @@ export const reportsApi = {
   },
 };
 
+// Automation Rules
+export const automationApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/automation-rules`),
+  create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/automation-rules`, data),
+  update: (workspaceId: string, id: string, data: any) => api.patch(`/workspaces/${workspaceId}/automation-rules/${id}`, data),
+  delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/automation-rules/${id}`),
+};
+
+// Contact Segments
+export const segmentsApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/contact-segments`),
+  create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/contact-segments`, data),
+  update: (workspaceId: string, id: string, data: any) => api.patch(`/workspaces/${workspaceId}/contact-segments/${id}`, data),
+  delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/contact-segments/${id}`),
+  preview: (workspaceId: string, filters: any[]) =>
+    api.post(`/workspaces/${workspaceId}/contact-segments/preview`, { filters }),
+  getContacts: (workspaceId: string, id: string) =>
+    api.get(`/workspaces/${workspaceId}/contact-segments/${id}/contacts`),
+};
+
+// Onboarding
+export const onboardingApi = {
+  get: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/onboarding`),
+  update: (workspaceId: string, data: any) => api.patch(`/workspaces/${workspaceId}/onboarding`, data),
+};
+
+// 2FA
+export const twoFactorApi = {
+  status: () => api.get('/2fa/status'),
+  setup: () => api.post('/2fa/setup'),
+  verify: (token: string) => api.post('/2fa/verify', { token }),
+  disable: (token: string) => api.post('/2fa/disable', { token }),
+};
+
+// Email Channel
+export const emailChannelApi = {
+  test: (workspaceId: string, channelId: string, config: any) =>
+    api.post(`/workspaces/${workspaceId}/email/test`, { channelId, ...config }),
+  send: (workspaceId: string, data: any) =>
+    api.post(`/workspaces/${workspaceId}/email/send`, data),
+};
+
 export default api;

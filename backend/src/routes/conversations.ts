@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { authenticate, requireWorkspace, AuthRequest } from '../middleware/auth';
 import { tryAutoAssign } from '../services/autoAssign';
 import { logAudit } from '../services/auditLog';
+import { runAutomations } from '../services/automationEngine';
 
 const router = Router({ mergeParams: true });
 router.use(authenticate, requireWorkspace());
@@ -64,6 +65,14 @@ router.post('/', async (req: AuthRequest, res: Response) => {
   // Try auto-assign
   tryAutoAssign(conversation.id, req.params.workspaceId, channelId).catch(console.error);
 
+  // Run automations
+  runAutomations(req.params.workspaceId, 'conversation.created', {
+    conversationId: conversation.id,
+    contactId: conversation.contactId,
+    channelId,
+    status: conversation.status,
+  }).catch(console.error);
+
   res.status(201).json(conversation);
 });
 
@@ -110,6 +119,15 @@ router.patch('/:conversationId', async (req: AuthRequest, res: Response) => {
       conversationTags: { include: { tag: true } },
     },
   });
+
+  // Run automations for status changes
+  if (status === 'resolved') {
+    runAutomations(req.params.workspaceId, 'conversation.resolved', {
+      conversationId: req.params.conversationId,
+      contactId: conversation.contactId,
+      status,
+    }).catch(console.error);
+  }
 
   // Log audit
   if (req.user && (status !== undefined || assigneeId !== undefined)) {

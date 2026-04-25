@@ -17,6 +17,8 @@ import {
   HomeIcon,
   MoonIcon,
   SunIcon,
+  BoltIcon,
+  FunnelIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -28,8 +30,10 @@ const navItems = [
   { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
   { to: '/inbox', icon: InboxIcon, label: 'Inbox' },
   { to: '/contacts', icon: UserGroupIcon, label: 'Contacts' },
+  { to: '/segments', icon: FunnelIcon, label: 'Segments' },
   { to: '/channels', icon: PhoneIcon, label: 'Channels' },
   { to: '/broadcasts', icon: MegaphoneIcon, label: 'Broadcasts' },
+  { to: '/automation', icon: BoltIcon, label: 'Automation' },
   { to: '/reports', icon: DocumentChartBarIcon, label: 'Reports' },
   { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
   { to: '/workspaces', icon: BuildingOfficeIcon, label: 'Workspaces' },

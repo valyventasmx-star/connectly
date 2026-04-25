@@ -32,6 +32,8 @@ export interface Channel {
   wabaId?: string;
   accessToken?: string;
   webhookVerifyToken?: string;
+  emailAddress?: string;
+  emailConfig?: string;
   status: 'pending' | 'connected' | 'error';
   workspaceId: string;
   createdAt: string;

@@ -16,6 +16,9 @@ import Broadcasts from './pages/Broadcasts';
 import Reports from './pages/Reports';
 import Dashboard from './pages/Dashboard';
 import ContactDetail from './pages/ContactDetail';
+import Automation from './pages/Automation';
+import Segments from './pages/Segments';
+import SegmentContacts from './pages/SegmentContacts';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -46,6 +49,9 @@ export default function App() {
         <Route path="/reports" element={<ProtectedRoute><Reports /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/contacts/:contactId" element={<ProtectedRoute><ContactDetail /></ProtectedRoute>} />
+        <Route path="/automation" element={<ProtectedRoute><Automation /></ProtectedRoute>} />
+        <Route path="/segments" element={<ProtectedRoute><Segments /></ProtectedRoute>} />
+        <Route path="/segments/:segmentId" element={<ProtectedRoute><SegmentContacts /></ProtectedRoute>} />
         <Route path="/legal" element={<Legal />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

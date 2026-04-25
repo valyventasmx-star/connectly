@@ -3,6 +3,7 @@ import prisma from '../lib/prisma';
 import { authenticate, requireWorkspace, AuthRequest } from '../middleware/auth';
 import { sendWhatsAppMessage } from '../services/whatsapp';
 import { getIO } from '../services/socket';
+import { runAutomations } from '../services/automationEngine';
 import https from 'https';
 import http from 'http';
 import { URL } from 'url';
@@ -134,6 +135,10 @@ router.post('/:conversationId/messages', async (req: AuthRequest, res: Response)
 
   if (!isNote) {
     fireWebhooks(req.params.workspaceId, 'message.sent', { message, conversationId: conv.id });
+    // Run automations for outbound messages
+    runAutomations(req.params.workspaceId, 'message.sent', {
+      conversationId: conv.id, contactId: conv.contactId, message, channel: conv.channel,
+    }).catch(console.error);
   }
 
   res.status(201).json(message);

@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth';
 import { useWorkspaceStore } from '../store/workspace';
 import {
   authApi, savedResponsesApi, customFieldsApi, templatesApi, outboundWebhooksApi, channelsApi,
-  apiKeysApi, auditLogApi, autoAssignApi, workspacesApi,
+  apiKeysApi, auditLogApi, autoAssignApi, workspacesApi, twoFactorApi,
 } from '../api/client';
 import { SavedResponse, CustomField, WhatsAppTemplate, OutboundWebhook, Channel } from '../types';
 import Button from '../components/ui/Button';
@@ -27,7 +27,7 @@ export default function Settings() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
-  const [tab, setTab] = useState<'profile' | 'password' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks' | 'api-keys' | 'audit-log' | 'auto-assign' | 'business-hours'>('profile');
+  const [tab, setTab] = useState<'profile' | 'password' | '2fa' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks' | 'api-keys' | 'audit-log' | 'auto-assign' | 'business-hours'>('profile');
 
   // Saved responses
   const [responses, setResponses] = useState<SavedResponse[]>([]);
@@ -77,6 +77,14 @@ export default function Settings() {
   // Business hours / SLA
   const [slaHours, setSlaHours] = useState(24);
   const [savingSla, setSavingSla] = useState(false);
+
+  // 2FA
+  const [twoFaEnabled, setTwoFaEnabled] = useState(false);
+  const [twoFaQr, setTwoFaQr] = useState<string | null>(null);
+  const [twoFaToken, setTwoFaToken] = useState('');
+  const [twoFaMsg, setTwoFaMsg] = useState('');
+  const [twoFaLoading, setTwoFaLoading] = useState(false);
+  const [twoFaDisableToken, setTwoFaDisableToken] = useState('');
 
   const handleSaveProfile = async () => {
     setSavingProfile(true);
@@ -241,9 +249,62 @@ export default function Settings() {
     }
   };
 
+  // Load 2FA status when tab is opened
+  useEffect(() => {
+    if (tab === '2fa') {
+      twoFactorApi.status().then(({ data }) => setTwoFaEnabled(data.enabled)).catch(console.error);
+    }
+  }, [tab]);
+
+  const setup2FA = async () => {
+    setTwoFaLoading(true);
+    setTwoFaMsg('');
+    try {
+      const { data } = await twoFactorApi.setup();
+      setTwoFaQr(data.qrCode);
+    } catch (e: any) {
+      setTwoFaMsg('❌ ' + (e.response?.data?.error || 'Failed to set up 2FA'));
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
+
+  const verify2FA = async () => {
+    setTwoFaLoading(true);
+    setTwoFaMsg('');
+    try {
+      await twoFactorApi.verify(twoFaToken);
+      setTwoFaEnabled(true);
+      setTwoFaQr(null);
+      setTwoFaToken('');
+      setTwoFaMsg('✅ Two-factor authentication enabled');
+    } catch (e: any) {
+      setTwoFaMsg('❌ ' + (e.response?.data?.error || 'Invalid code'));
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
+
+  const disable2FA = async () => {
+    if (!twoFaDisableToken) return;
+    setTwoFaLoading(true);
+    setTwoFaMsg('');
+    try {
+      await twoFactorApi.disable(twoFaDisableToken);
+      setTwoFaEnabled(false);
+      setTwoFaDisableToken('');
+      setTwoFaMsg('✅ Two-factor authentication disabled');
+    } catch (e: any) {
+      setTwoFaMsg('❌ ' + (e.response?.data?.error || 'Invalid code'));
+    } finally {
+      setTwoFaLoading(false);
+    }
+  };
+
   const tabs = [
     { key: 'profile', label: 'Profile' },
     { key: 'password', label: 'Password' },
+    { key: '2fa', label: '2FA Security' },
     { key: 'notifications', label: 'Notifications' },
     { key: 'saved-responses', label: 'Saved Responses' },
     { key: 'custom-fields', label: 'Custom Fields' },
@@ -347,6 +408,82 @@ export default function Settings() {
                   )}
                   <Button onClick={handleChangePassword} loading={savingPassword}>Change Password</Button>
                 </div>
+              </div>
+            )}
+
+            {tab === '2fa' && (
+              <div className="max-w-md">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">Two-Factor Authentication</h2>
+                <p className="text-sm text-gray-500 mb-6">Add an extra layer of security to your account using an authenticator app like Google Authenticator or Authy.</p>
+
+                {twoFaEnabled ? (
+                  <div>
+                    <div className="flex items-center gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-2xl mb-6">
+                      <span className="text-2xl">🔒</span>
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-800">2FA is enabled</p>
+                        <p className="text-xs text-emerald-600">Your account is protected with two-factor authentication.</p>
+                      </div>
+                    </div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Enter your current 6-digit code to disable</label>
+                    <div className="flex gap-3">
+                      <input
+                        className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400"
+                        placeholder="123456"
+                        maxLength={6}
+                        value={twoFaDisableToken}
+                        onChange={e => setTwoFaDisableToken(e.target.value.replace(/\D/g, ''))}
+                      />
+                      <button onClick={disable2FA} disabled={twoFaLoading || twoFaDisableToken.length !== 6}
+                        className="bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-red-700 disabled:opacity-50">
+                        {twoFaLoading ? 'Disabling…' : 'Disable 2FA'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    {!twoFaQr ? (
+                      <div>
+                        <div className="flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-2xl mb-6">
+                          <span className="text-2xl">⚠️</span>
+                          <div>
+                            <p className="text-sm font-semibold text-amber-800">2FA is not enabled</p>
+                            <p className="text-xs text-amber-600">We recommend enabling 2FA to secure your account.</p>
+                          </div>
+                        </div>
+                        <button onClick={setup2FA} disabled={twoFaLoading}
+                          className="bg-primary-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
+                          {twoFaLoading ? 'Setting up…' : 'Set up 2FA'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-sm text-gray-700 mb-4">Scan this QR code with your authenticator app, then enter the 6-digit code below to confirm.</p>
+                        <div className="flex justify-center mb-4">
+                          <img src={twoFaQr} alt="2FA QR Code" className="w-48 h-48 border border-gray-200 rounded-xl p-2" />
+                        </div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Verification code</label>
+                        <div className="flex gap-3">
+                          <input
+                            className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 tracking-widest text-center text-lg"
+                            placeholder="000000"
+                            maxLength={6}
+                            value={twoFaToken}
+                            onChange={e => setTwoFaToken(e.target.value.replace(/\D/g, ''))}
+                            onKeyDown={e => e.key === 'Enter' && twoFaToken.length === 6 && verify2FA()}
+                          />
+                          <button onClick={verify2FA} disabled={twoFaLoading || twoFaToken.length !== 6}
+                            className="bg-primary-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
+                            {twoFaLoading ? 'Verifying…' : 'Verify'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {twoFaMsg && (
+                  <p className={`mt-4 text-sm ${twoFaMsg.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'}`}>{twoFaMsg}</p>
+                )}
               </div>
             )}
 

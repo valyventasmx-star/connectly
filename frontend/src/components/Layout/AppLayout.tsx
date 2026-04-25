@@ -1,11 +1,12 @@
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
-import { authApi, workspacesApi } from '../../api/client';
+import { authApi, workspacesApi, onboardingApi } from '../../api/client';
 import { useSocket } from '../../hooks/useSocket';
 import SearchModal from '../Search/SearchModal';
+import OnboardingWizard from '../Onboarding/OnboardingWizard';
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -15,6 +16,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const { isAuthenticated, setAuth, user } = useAuthStore();
   const { setWorkspaces, setCurrentWorkspace, currentWorkspace } = useWorkspaceStore();
   const navigate = useNavigate();
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
   useSocket();
 
   useEffect(() => {
@@ -38,6 +41,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }).catch(console.error);
   }, [isAuthenticated]);
 
+  // Check onboarding status when workspace is set
+  useEffect(() => {
+    if (!currentWorkspace || onboardingChecked) return;
+    setOnboardingChecked(true);
+    onboardingApi.get(currentWorkspace.id).then(({ data }) => {
+      if (!data.onboardingCompleted) setShowOnboarding(true);
+    }).catch(console.error);
+  }, [currentWorkspace]);
+
   if (!isAuthenticated) return null;
 
   return (
@@ -49,6 +61,9 @@ export default function AppLayout({ children }: AppLayoutProps) {
         {children}
       </main>
       <SearchModal />
+      {showOnboarding && (
+        <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+      )}
     </div>
   );
 }

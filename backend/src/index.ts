@@ -38,6 +38,11 @@ import apiKeysRoutes from './routes/apiKeys';
 import auditLogRoutes from './routes/auditLog';
 import autoAssignRoutes from './routes/autoAssign';
 import csatRoutes from './routes/csat';
+import automationRulesRoutes from './routes/automationRules';
+import emailChannelRoutes from './routes/emailChannel';
+import contactSegmentsRoutes from './routes/contactSegments';
+import twoFactorRoutes from './routes/twoFactor';
+import onboardingRoutes from './routes/onboarding';
 
 const app = express();
 const httpServer = createServer(app);
@@ -86,6 +91,12 @@ app.use('/api/workspaces/:workspaceId/audit-log', auditLogRoutes);
 app.use('/api/workspaces/:workspaceId/auto-assign-rules', autoAssignRoutes);
 app.use('/api/workspaces/:workspaceId/csat', csatRoutes);
 app.use('/api/csat', csatRoutes);
+app.use('/api/workspaces/:workspaceId/automation-rules', automationRulesRoutes);
+app.use('/api/workspaces/:workspaceId/contact-segments', contactSegmentsRoutes);
+app.use('/api/workspaces/:workspaceId/onboarding', onboardingRoutes);
+app.use('/api/workspaces/:workspaceId/email', emailChannelRoutes);
+app.use('/api/email/inbound', emailChannelRoutes); // public inbound
+app.use('/api/2fa', twoFactorRoutes);
 app.use('/api/workspaces', billingRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/admin', adminRoutes);
