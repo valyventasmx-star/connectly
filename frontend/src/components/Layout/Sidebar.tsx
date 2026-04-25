@@ -19,6 +19,10 @@ import {
   SunIcon,
   BoltIcon,
   FunnelIcon,
+  BookOpenIcon,
+  ViewColumnsIcon,
+  PuzzlePieceIcon,
+  CodeBracketIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -30,12 +34,15 @@ const navItems = [
   { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
   { to: '/inbox', icon: InboxIcon, label: 'Inbox' },
   { to: '/contacts', icon: UserGroupIcon, label: 'Contacts' },
+  { to: '/pipeline', icon: ViewColumnsIcon, label: 'Pipeline' },
   { to: '/segments', icon: FunnelIcon, label: 'Segments' },
   { to: '/channels', icon: PhoneIcon, label: 'Channels' },
   { to: '/broadcasts', icon: MegaphoneIcon, label: 'Broadcasts' },
   { to: '/automation', icon: BoltIcon, label: 'Automation' },
+  { to: '/knowledge-base', icon: BookOpenIcon, label: 'Knowledge Base' },
   { to: '/reports', icon: DocumentChartBarIcon, label: 'Reports' },
   { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
+  { to: '/integrations', icon: PuzzlePieceIcon, label: 'Integrations' },
   { to: '/workspaces', icon: BuildingOfficeIcon, label: 'Workspaces' },
 ];
 
@@ -92,6 +99,9 @@ export default function Sidebar() {
         <div className="flex flex-col gap-1">
           <NavLink to="/ai-settings" title="AI Settings" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
             <SparklesIcon className="w-5 h-5" />
+          </NavLink>
+          <NavLink to="/api-docs" title="API Docs" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
+            <CodeBracketIcon className="w-5 h-5" />
           </NavLink>
           <NavLink to="/billing" title="Billing" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
             <CreditCardIcon className="w-5 h-5" />

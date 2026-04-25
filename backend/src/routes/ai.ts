@@ -111,4 +111,80 @@ router.post('/:conversationId/ai-reply', async (req: AuthRequest, res: Response)
   }
 });
 
+// AI Suggested Replies
+router.get('/conversations/:conversationId/ai-suggestions', async (req: AuthRequest, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'AI not configured' });
+  const workspace = await prisma.workspace.findUnique({ where: { id: req.params.workspaceId } });
+  const conv = await prisma.conversation.findFirst({
+    where: { id: req.params.conversationId, workspaceId: req.params.workspaceId },
+    include: { contact: true },
+  });
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+  const messages = await prisma.message.findMany({
+    where: { conversationId: conv.id, isNote: false },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+  });
+  const history = messages.reverse().map(m => ({
+    role: m.direction === 'outbound' ? 'assistant' : 'user',
+    content: m.content,
+  }));
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const systemPrompt = workspace?.aiPrompt || `You are a helpful customer support assistant for ${workspace?.name}.`;
+
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      system: `${systemPrompt}\n\nGenerate exactly 3 different short suggested reply options for the agent. Each should be a complete, ready-to-send message. Return ONLY a JSON array of 3 strings, nothing else. Example: ["Reply 1", "Reply 2", "Reply 3"]`,
+      messages: history.length > 0 ? history as any : [{ role: 'user', content: 'Hello' }],
+    });
+
+    const raw = (response.content[0] as any).text.trim();
+    const suggestions = JSON.parse(raw.match(/\[[\s\S]*\]/)?.[0] || '[]');
+    res.json({ suggestions });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Conversation Summary
+router.get('/conversations/:conversationId/ai-summary', async (req: AuthRequest, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'AI not configured' });
+  const conv = await prisma.conversation.findFirst({
+    where: { id: req.params.conversationId, workspaceId: req.params.workspaceId },
+    include: { contact: true },
+  });
+  if (!conv) return res.status(404).json({ error: 'Conversation not found' });
+
+  const messages = await prisma.message.findMany({
+    where: { conversationId: conv.id, isNote: false },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (messages.length === 0) return res.json({ summary: 'No messages in this conversation yet.' });
+
+  const transcript = messages.map(m =>
+    `[${m.direction === 'inbound' ? conv.contact.name : 'Agent'}]: ${m.content}`
+  ).join('\n');
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `Summarize this customer support conversation in 2-3 sentences. Focus on the issue, actions taken, and current status:\n\n${transcript}`,
+      }],
+    });
+    res.json({ summary: (response.content[0] as any).text });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

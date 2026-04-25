@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth';
 import { useWorkspaceStore } from '../store/workspace';
 import {
   authApi, savedResponsesApi, customFieldsApi, templatesApi, outboundWebhooksApi, channelsApi,
-  apiKeysApi, auditLogApi, autoAssignApi, workspacesApi, twoFactorApi,
+  apiKeysApi, auditLogApi, autoAssignApi, workspacesApi, twoFactorApi, brandingApi,
 } from '../api/client';
 import { SavedResponse, CustomField, WhatsAppTemplate, OutboundWebhook, Channel } from '../types';
 import Button from '../components/ui/Button';
@@ -27,7 +27,7 @@ export default function Settings() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
-  const [tab, setTab] = useState<'profile' | 'password' | '2fa' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks' | 'api-keys' | 'audit-log' | 'auto-assign' | 'business-hours'>('profile');
+  const [tab, setTab] = useState<'profile' | 'password' | '2fa' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks' | 'api-keys' | 'audit-log' | 'auto-assign' | 'business-hours' | 'branding' | 'usage'>('profile');
 
   // Saved responses
   const [responses, setResponses] = useState<SavedResponse[]>([]);
@@ -77,6 +77,28 @@ export default function Settings() {
   // Business hours / SLA
   const [slaHours, setSlaHours] = useState(24);
   const [savingSla, setSavingSla] = useState(false);
+
+  // Business hours
+  const [oooEnabled, setOooEnabled] = useState(false);
+  const [oooMessage, setOooMessage] = useState('We are currently away. We will get back to you during business hours.');
+  const [businessHours, setBusinessHours] = useState<any[]>([
+    { day: 1, label: 'Mon', start: '09:00', end: '18:00', enabled: true },
+    { day: 2, label: 'Tue', start: '09:00', end: '18:00', enabled: true },
+    { day: 3, label: 'Wed', start: '09:00', end: '18:00', enabled: true },
+    { day: 4, label: 'Thu', start: '09:00', end: '18:00', enabled: true },
+    { day: 5, label: 'Fri', start: '09:00', end: '18:00', enabled: true },
+    { day: 6, label: 'Sat', start: '10:00', end: '15:00', enabled: false },
+    { day: 0, label: 'Sun', start: '10:00', end: '15:00', enabled: false },
+  ]);
+  const [savingBh, setSavingBh] = useState(false);
+
+  // Branding
+  const [branding, setBranding] = useState({ brandingName: '', brandingLogo: '', brandingColor: '#6366f1' });
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [brandingMsg, setBrandingMsg] = useState('');
+
+  // Usage
+  const [usage, setUsage] = useState<any>(null);
 
   // 2FA
   const [twoFaEnabled, setTwoFaEnabled] = useState(false);
@@ -168,6 +190,21 @@ export default function Settings() {
     }
     if (tab === 'business-hours') {
       workspacesApi.get(currentWorkspace.id).then(({ data }) => setSlaHours(data.slaHours || 24)).catch(console.error);
+      brandingApi.get(currentWorkspace.id).then(({ data }) => {
+        if (data?.oooEnabled !== undefined) setOooEnabled(data.oooEnabled);
+        if (data?.oooMessage) setOooMessage(data.oooMessage);
+        if (data?.businessHours) {
+          try { const parsed = JSON.parse(data.businessHours); if (parsed.length) setBusinessHours(parsed); } catch {}
+        }
+      }).catch(console.error);
+    }
+    if (tab === 'branding') {
+      brandingApi.get(currentWorkspace.id).then(({ data }) => {
+        if (data) setBranding({ brandingName: data.brandingName || '', brandingLogo: data.brandingLogo || '', brandingColor: data.brandingColor || '#6366f1' });
+      }).catch(console.error);
+    }
+    if (tab === 'usage') {
+      brandingApi.getUsage(currentWorkspace.id).then(({ data }) => setUsage(data)).catch(console.error);
     }
   }, [tab, currentWorkspace]);
 
@@ -249,6 +286,27 @@ export default function Settings() {
     }
   };
 
+  const saveBusinessHours = async () => {
+    if (!currentWorkspace) return;
+    setSavingBh(true);
+    try {
+      await brandingApi.updateBusinessHours(currentWorkspace.id, { businessHours, oooEnabled, oooMessage });
+      await workspacesApi.update(currentWorkspace.id, { slaHours });
+    } finally { setSavingBh(false); }
+  };
+
+  const saveBranding = async () => {
+    if (!currentWorkspace) return;
+    setSavingBranding(true);
+    setBrandingMsg('');
+    try {
+      await brandingApi.updateBranding(currentWorkspace.id, branding);
+      setBrandingMsg('✅ Branding saved');
+    } catch (e: any) {
+      setBrandingMsg('❌ ' + (e.response?.data?.error || 'Failed'));
+    } finally { setSavingBranding(false); }
+  };
+
   // Load 2FA status when tab is opened
   useEffect(() => {
     if (tab === '2fa') {
@@ -312,6 +370,8 @@ export default function Settings() {
     { key: 'webhooks', label: 'Webhooks' },
     { key: 'auto-assign', label: 'Auto-assign' },
     { key: 'business-hours', label: 'SLA & Hours' },
+    { key: 'branding', label: 'White Label' },
+    { key: 'usage', label: 'Usage' },
     { key: 'api-keys', label: 'API Keys' },
     { key: 'audit-log', label: 'Audit Log' },
   ] as const;
@@ -938,31 +998,149 @@ export default function Settings() {
 
             {/* Business Hours / SLA */}
             {tab === 'business-hours' && (
-              <div className="space-y-6">
+              <div className="max-w-xl space-y-6">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900 mb-1">SLA Configuration</h3>
-                  <p className="text-xs text-gray-500 mb-4">Set the default time before a conversation is considered overdue</p>
-                  <div className="flex items-center gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">SLA hours</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="number" min="1" max="720"
-                          className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
-                          value={slaHours}
-                          onChange={e => setSlaHours(parseInt(e.target.value) || 24)}
-                        />
-                        <span className="text-sm text-gray-500">hours</span>
-                      </div>
-                    </div>
-                    <Button size="sm" onClick={saveSlaHours} loading={savingSla} className="mt-5">Save</Button>
+                  <p className="text-xs text-gray-500 mb-3">Default hours before a conversation is overdue</p>
+                  <div className="flex items-center gap-3">
+                    <input type="number" min="1" max="720"
+                      className="w-24 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      value={slaHours} onChange={e => setSlaHours(parseInt(e.target.value) || 24)} />
+                    <span className="text-sm text-gray-500">hours</span>
                   </div>
-                  <p className="text-xs text-gray-400 mt-2">New conversations will show an SLA timer based on this setting.</p>
                 </div>
+
                 <div className="border-t border-gray-100 pt-6">
                   <h3 className="text-sm font-semibold text-gray-900 mb-1">Business Hours</h3>
-                  <p className="text-xs text-gray-500">Business hours configuration coming soon. SLA timers will respect your team's working hours.</p>
+                  <p className="text-xs text-gray-500 mb-4">When your team is available. OOO messages are sent outside these hours.</p>
+                  <div className="space-y-2">
+                    {businessHours.map((bh, i) => (
+                      <div key={bh.day} className="flex items-center gap-3">
+                        <div className="w-16">
+                          <button onClick={() => setBusinessHours(prev => prev.map((b, idx) => idx === i ? { ...b, enabled: !b.enabled } : b))}
+                            className={`w-full text-xs py-1 rounded-lg font-medium ${bh.enabled ? 'bg-primary-100 text-primary-700' : 'bg-gray-100 text-gray-400'}`}>
+                            {bh.label}
+                          </button>
+                        </div>
+                        <input type="time" value={bh.start} disabled={!bh.enabled}
+                          onChange={e => setBusinessHours(prev => prev.map((b, idx) => idx === i ? { ...b, start: e.target.value } : b))}
+                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none disabled:opacity-40" />
+                        <span className="text-xs text-gray-400">to</span>
+                        <input type="time" value={bh.end} disabled={!bh.enabled}
+                          onChange={e => setBusinessHours(prev => prev.map((b, idx) => idx === i ? { ...b, end: e.target.value } : b))}
+                          className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none disabled:opacity-40" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
+
+                <div className="border-t border-gray-100 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Out-of-Office Message</h3>
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className={`w-10 h-5 rounded-full transition-colors cursor-pointer ${oooEnabled ? 'bg-primary-500' : 'bg-gray-200'}`}
+                      onClick={() => setOooEnabled(v => !v)}>
+                      <div className={`w-4 h-4 bg-white rounded-full shadow mt-0.5 transition-transform ${oooEnabled ? 'translate-x-5 ml-0.5' : 'ml-0.5'}`} />
+                    </div>
+                    <span className="text-sm text-gray-700">Send OOO message outside business hours</span>
+                  </div>
+                  {oooEnabled && (
+                    <textarea className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none resize-none" rows={3}
+                      value={oooMessage} onChange={e => setOooMessage(e.target.value)} />
+                  )}
+                </div>
+
+                <button onClick={saveBusinessHours} disabled={savingBh}
+                  className="bg-primary-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
+                  {savingBh ? 'Saving…' : 'Save All Settings'}
+                </button>
+              </div>
+            )}
+
+            {/* White Label Branding */}
+            {tab === 'branding' && (
+              <div className="max-w-lg">
+                <h2 className="text-base font-semibold text-gray-900 mb-1">White-Label Branding</h2>
+                <p className="text-sm text-gray-500 mb-6">Customize the app's appearance for your brand.</p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Brand Name</label>
+                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="Your Company Name" value={branding.brandingName}
+                      onChange={e => setBranding(b => ({ ...b, brandingName: e.target.value }))} />
+                    <p className="text-xs text-gray-400 mt-1">Replaces "Connectly" in the sidebar and emails</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Logo URL</label>
+                    <input className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                      placeholder="https://your-company.com/logo.png" value={branding.brandingLogo}
+                      onChange={e => setBranding(b => ({ ...b, brandingLogo: e.target.value }))} />
+                    {branding.brandingLogo && <img src={branding.brandingLogo} alt="logo preview" className="mt-2 h-10 rounded-lg border border-gray-200 object-contain" />}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Brand Color</label>
+                    <div className="flex items-center gap-3">
+                      <input type="color" value={branding.brandingColor}
+                        onChange={e => setBranding(b => ({ ...b, brandingColor: e.target.value }))}
+                        className="w-12 h-10 rounded-lg border border-gray-200 cursor-pointer p-1" />
+                      <input className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none"
+                        value={branding.brandingColor} onChange={e => setBranding(b => ({ ...b, brandingColor: e.target.value }))} />
+                    </div>
+                  </div>
+                  <button onClick={saveBranding} disabled={savingBranding}
+                    className="bg-primary-600 text-white px-5 py-2.5 rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
+                    {savingBranding ? 'Saving…' : 'Save Branding'}
+                  </button>
+                  {brandingMsg && <p className={`text-sm ${brandingMsg.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'}`}>{brandingMsg}</p>}
+                </div>
+              </div>
+            )}
+
+            {/* Usage */}
+            {tab === 'usage' && (
+              <div className="max-w-2xl">
+                <h2 className="text-base font-semibold text-gray-900 mb-6">Workspace Usage</h2>
+                {!usage ? (
+                  <div className="flex justify-center py-10"><div className="animate-spin w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full" /></div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-primary-50 border border-primary-100 rounded-2xl p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-primary-900 capitalize">{usage.plan} Plan</p>
+                        <p className="text-xs text-primary-600">Current workspace plan</p>
+                      </div>
+                      <span className="text-2xl">🚀</span>
+                    </div>
+                    {[
+                      { label: 'Contacts', value: usage.contacts, limit: usage.limits.contacts, icon: '👥' },
+                      { label: 'Messages', value: usage.messages, limit: usage.limits.messages, icon: '💬' },
+                      { label: 'Channels', value: usage.channels, limit: usage.limits.channels, icon: '📡' },
+                      { label: 'Conversations', value: usage.conversations, limit: -1, icon: '🗂' },
+                    ].map(item => {
+                      const pct = item.limit > 0 ? Math.min(100, Math.round((item.value / item.limit) * 100)) : 0;
+                      const unlimited = item.limit === -1;
+                      return (
+                        <div key={item.label} className="bg-white border border-gray-100 rounded-2xl p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg">{item.icon}</span>
+                              <span className="text-sm font-medium text-gray-900">{item.label}</span>
+                            </div>
+                            <span className="text-sm font-bold text-gray-700">
+                              {item.value.toLocaleString()}{!unlimited && <span className="text-gray-400 font-normal"> / {item.limit.toLocaleString()}</span>}
+                              {unlimited && <span className="text-xs bg-green-100 text-green-700 ml-2 px-2 py-0.5 rounded-full">Unlimited</span>}
+                            </span>
+                          </div>
+                          {!unlimited && (
+                            <div className="w-full bg-gray-100 rounded-full h-2">
+                              <div className={`h-2 rounded-full transition-all ${pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-primary-500'}`}
+                                style={{ width: `${pct}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

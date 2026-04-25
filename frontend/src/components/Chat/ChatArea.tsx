@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Conversation, Message } from '../../types';
-import { messagesApi, csatApi } from '../../api/client';
+import { messagesApi, csatApi, aiApi, snoozeApi, scheduledMessagesApi } from '../../api/client';
 import { useWorkspaceStore } from '../../store/workspace';
 import { getSocket } from '../../hooks/useSocket';
 import MessageBubble from './MessageBubble';
@@ -8,7 +8,7 @@ import ChatInput from './ChatInput';
 import ContactPanel from './ContactPanel';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
-import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon, SparklesIcon, DocumentTextIcon, MoonIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 interface Props {
@@ -21,6 +21,16 @@ export default function ChatArea({ conversation }: Props) {
   const [loading, setLoading] = useState(false);
   const [showPanel, setShowPanel] = useState(true);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(false);
+  const [showSnooze, setShowSnooze] = useState(false);
+  const [snoozeUntil, setSnoozeUntil] = useState('');
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [scheduleContent, setScheduleContent] = useState('');
+  const [scheduleAt, setScheduleAt] = useState('');
+  const [scheduledMessages, setScheduledMessages] = useState<any[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
   const typingTimerRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const isTypingRef = useRef(false);
@@ -139,6 +149,45 @@ export default function ChatArea({ conversation }: Props) {
     }
   };
 
+  const handleGetSuggestions = async () => {
+    if (!currentWorkspace) return;
+    setLoadingSuggestions(true);
+    setSuggestions([]);
+    try {
+      const { data } = await aiApi.suggestions(currentWorkspace.id, conversation.id);
+      setSuggestions(data.suggestions || []);
+    } catch { setSuggestions([]); }
+    finally { setLoadingSuggestions(false); }
+  };
+
+  const handleGetSummary = async () => {
+    if (!currentWorkspace) return;
+    setLoadingSummary(true);
+    setSummary(null);
+    try {
+      const { data } = await aiApi.summary(currentWorkspace.id, conversation.id);
+      setSummary(data.summary);
+    } catch { setSummary('Failed to generate summary.'); }
+    finally { setLoadingSummary(false); }
+  };
+
+  const handleSnooze = async () => {
+    if (!currentWorkspace || !snoozeUntil) return;
+    await snoozeApi.snooze(currentWorkspace.id, conversation.id, snoozeUntil);
+    setShowSnooze(false);
+  };
+
+  const handleSchedule = async () => {
+    if (!currentWorkspace || !scheduleContent || !scheduleAt) return;
+    await scheduledMessagesApi.create(currentWorkspace.id, conversation.id, {
+      content: scheduleContent, scheduledAt: scheduleAt,
+    });
+    setScheduledMessages(prev => [...prev, { content: scheduleContent, scheduledAt: scheduleAt }]);
+    setScheduleContent('');
+    setScheduleAt('');
+    setShowSchedule(false);
+  };
+
   const handleExportConversation = () => {
     const lines = [`Conversation with ${conversation.contact.name}`, `Status: ${conversation.status}`, `Channel: ${conversation.channel?.name}`, '---', ''];
     messages.forEach(m => {
@@ -186,35 +235,117 @@ export default function ChatArea({ conversation }: Props) {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full">
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-full mr-1">
               via {conversation.channel?.name}
             </span>
+            <button onClick={handleGetSuggestions} disabled={loadingSuggestions}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition-colors"
+              title="AI reply suggestions">
+              <SparklesIcon className="w-5 h-5" />
+            </button>
+            <button onClick={handleGetSummary} disabled={loadingSummary}
+              className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+              title="AI conversation summary">
+              <DocumentTextIcon className="w-5 h-5" />
+            </button>
+            <button onClick={() => setShowSnooze(v => !v)}
+              className={`p-1.5 rounded-lg transition-colors ${showSnooze ? 'bg-yellow-50 text-yellow-600' : 'text-gray-400 hover:bg-yellow-50 hover:text-yellow-600'}`}
+              title="Snooze conversation">
+              <MoonIcon className="w-5 h-5" />
+            </button>
+            <button onClick={() => setShowSchedule(v => !v)}
+              className={`p-1.5 rounded-lg transition-colors ${showSchedule ? 'bg-blue-50 text-blue-600' : 'text-gray-400 hover:bg-blue-50 hover:text-blue-600'}`}
+              title="Schedule message">
+              <ClockIcon className="w-5 h-5" />
+            </button>
             {conversation.status === 'resolved' && (
-              <button
-                onClick={handleSendCsat}
+              <button onClick={handleSendCsat}
                 className="p-1.5 rounded-lg text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 transition-colors"
-                title="Send CSAT survey"
-              >
+                title="Send CSAT survey">
                 <StarIcon className="w-5 h-5" />
               </button>
             )}
-            <button
-              onClick={handleExportConversation}
+            <button onClick={handleExportConversation}
               className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
-              title="Export conversation"
-            >
+              title="Export conversation">
               <ArrowDownTrayIcon className="w-5 h-5" />
             </button>
             <button
               onClick={() => setShowPanel((v) => !v)}
               className={`p-1.5 rounded-lg transition-colors ${showPanel ? 'bg-primary-50 text-primary-600' : 'text-gray-400 hover:bg-gray-100'}`}
-              title="Toggle contact panel"
-            >
+              title="Toggle contact panel">
               <InformationCircleIcon className="w-5 h-5" />
             </button>
           </div>
         </div>
+
+        {/* AI Summary */}
+        {(loadingSummary || summary) && (
+          <div className="px-5 py-3 bg-indigo-50 border-b border-indigo-100 flex items-start gap-2">
+            <DocumentTextIcon className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              {loadingSummary ? <p className="text-xs text-indigo-500">Generating summary…</p> : <p className="text-xs text-indigo-800">{summary}</p>}
+            </div>
+            <button onClick={() => setSummary(null)} className="text-indigo-400 hover:text-indigo-600"><XMarkIcon className="w-4 h-4" /></button>
+          </div>
+        )}
+
+        {/* AI Suggestions */}
+        {(loadingSuggestions || suggestions.length > 0) && (
+          <div className="px-5 py-3 bg-purple-50 border-b border-purple-100">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-purple-700 flex items-center gap-1"><SparklesIcon className="w-3 h-3" />Suggested replies</p>
+              <button onClick={() => setSuggestions([])} className="text-purple-400 hover:text-purple-600"><XMarkIcon className="w-4 h-4" /></button>
+            </div>
+            {loadingSuggestions ? <p className="text-xs text-purple-500">Generating suggestions…</p> : (
+              <div className="space-y-1">
+                {suggestions.map((s, i) => (
+                  <button key={i} onClick={() => handleSend(s)}
+                    className="w-full text-left text-xs bg-white border border-purple-200 hover:border-purple-400 text-gray-700 px-3 py-2 rounded-lg transition-colors">
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Snooze panel */}
+        {showSnooze && (
+          <div className="px-5 py-3 bg-yellow-50 border-b border-yellow-100 flex items-center gap-3">
+            <MoonIcon className="w-4 h-4 text-yellow-600 flex-shrink-0" />
+            <p className="text-xs font-medium text-yellow-800">Snooze until:</p>
+            <input type="datetime-local" value={snoozeUntil} onChange={e => setSnoozeUntil(e.target.value)}
+              className="text-xs border border-yellow-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+            <button onClick={handleSnooze} disabled={!snoozeUntil}
+              className="bg-yellow-500 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-yellow-600 disabled:opacity-50">
+              Snooze
+            </button>
+            <button onClick={() => setShowSnooze(false)} className="text-yellow-400 hover:text-yellow-600 ml-auto"><XMarkIcon className="w-4 h-4" /></button>
+          </div>
+        )}
+
+        {/* Schedule message panel */}
+        {showSchedule && (
+          <div className="px-5 py-3 bg-blue-50 border-b border-blue-100">
+            <div className="flex items-center gap-2 mb-2">
+              <ClockIcon className="w-4 h-4 text-blue-600" />
+              <p className="text-xs font-medium text-blue-800">Schedule a message</p>
+              <button onClick={() => setShowSchedule(false)} className="text-blue-400 hover:text-blue-600 ml-auto"><XMarkIcon className="w-4 h-4" /></button>
+            </div>
+            <div className="flex gap-2">
+              <input type="text" placeholder="Message content…" value={scheduleContent} onChange={e => setScheduleContent(e.target.value)}
+                className="flex-1 text-xs border border-blue-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}
+                className="text-xs border border-blue-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-300" />
+              <button onClick={handleSchedule} disabled={!scheduleContent || !scheduleAt}
+                className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
+                Schedule
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Keyboard shortcut hint */}
         <div className="px-4 py-1 bg-gray-50 border-b border-gray-100 flex items-center gap-3 text-[10px] text-gray-400">

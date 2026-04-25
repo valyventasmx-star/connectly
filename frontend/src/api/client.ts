@@ -228,6 +228,74 @@ export const reportsApi = {
   },
 };
 
+// Knowledge Base
+export const knowledgeBaseApi = {
+  list: (workspaceId: string, q?: string) => api.get(`/workspaces/${workspaceId}/knowledge-base`, { params: q ? { q } : {} }),
+  create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/knowledge-base`, data),
+  update: (workspaceId: string, id: string, data: any) => api.patch(`/workspaces/${workspaceId}/knowledge-base/${id}`, data),
+  delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/knowledge-base/${id}`),
+  aiSearch: (workspaceId: string, query: string) => api.post(`/workspaces/${workspaceId}/knowledge-base/ai-search`, { query }),
+};
+
+// Scheduled Messages
+export const scheduledMessagesApi = {
+  list: (workspaceId: string, conversationId: string) =>
+    api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/scheduled`),
+  create: (workspaceId: string, conversationId: string, data: any) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/scheduled`, data),
+  delete: (workspaceId: string, conversationId: string, id: string) =>
+    api.delete(`/workspaces/${workspaceId}/conversations/${conversationId}/scheduled/${id}`),
+};
+
+// Shopify
+export const shopifyApi = {
+  get: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/shopify`),
+  save: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/shopify`, data),
+  toggle: (workspaceId: string, enabled: boolean) => api.patch(`/workspaces/${workspaceId}/shopify`, { enabled }),
+  delete: (workspaceId: string) => api.delete(`/workspaces/${workspaceId}/shopify`),
+  getOrders: (workspaceId: string, contactId: string) => api.get(`/workspaces/${workspaceId}/shopify/orders/${contactId}`),
+};
+
+// Branding + Business Hours + Usage
+export const brandingApi = {
+  get: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/`),
+  updateBranding: (workspaceId: string, data: any) => api.patch(`/workspaces/${workspaceId}/branding`, data),
+  updateBusinessHours: (workspaceId: string, data: any) => api.patch(`/workspaces/${workspaceId}/business-hours`, data),
+  getUsage: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/usage`),
+};
+
+// Custom Reports
+export const customReportsApi = {
+  build: (workspaceId: string, params: any) => api.post(`/workspaces/${workspaceId}/custom-reports/build`, params),
+};
+
+// AI helpers
+export const aiApi = {
+  suggestions: (workspaceId: string, conversationId: string) =>
+    api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/ai-suggestions`),
+  summary: (workspaceId: string, conversationId: string) =>
+    api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/ai-summary`),
+};
+
+// Snooze
+export const snoozeApi = {
+  snooze: (workspaceId: string, conversationId: string, until: string) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/snooze`, { until }),
+  unsnooze: (workspaceId: string, conversationId: string) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/unsnooze`),
+};
+
+// Contact Import
+export const importApi = {
+  csv: (workspaceId: string, file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post(`/workspaces/${workspaceId}/contacts/import`, form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+};
+
 // Automation Rules
 export const automationApi = {
   list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/automation-rules`),

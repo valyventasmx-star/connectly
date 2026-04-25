@@ -145,4 +145,24 @@ router.patch('/:conversationId', async (req: AuthRequest, res: Response) => {
   res.json(conversation);
 });
 
+// Snooze a conversation
+router.post('/:conversationId/snooze', async (req: AuthRequest, res: Response) => {
+  const { until } = req.body;
+  if (!until) return res.status(400).json({ error: 'until (datetime) is required' });
+  const conversation = await prisma.conversation.update({
+    where: { id: req.params.conversationId },
+    data: { snoozedUntil: new Date(until), status: 'snoozed' },
+  });
+  res.json(conversation);
+});
+
+// Un-snooze a conversation
+router.post('/:conversationId/unsnooze', async (req: AuthRequest, res: Response) => {
+  const conversation = await prisma.conversation.update({
+    where: { id: req.params.conversationId },
+    data: { snoozedUntil: null, status: 'open' },
+  });
+  res.json(conversation);
+});
+
 export default router;

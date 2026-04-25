@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
-import { reportsApi, csatApi } from '../api/client';
-import { ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { reportsApi, csatApi, customReportsApi } from '../api/client';
+import { ArrowDownTrayIcon, PlayIcon } from '@heroicons/react/24/outline';
 
 const STAGES = [
   { key: 'new_lead', label: 'New Lead', color: 'bg-blue-400', emoji: '🆕' },
@@ -12,7 +12,7 @@ const STAGES = [
   { key: 'cold_lead', label: 'Cold Lead', color: 'bg-gray-400', emoji: '❄️' },
 ];
 
-type TabKey = 'lifecycle' | 'conversations' | 'leaderboard' | 'tags' | 'csat';
+type TabKey = 'lifecycle' | 'conversations' | 'leaderboard' | 'tags' | 'csat' | 'custom';
 
 export default function Reports() {
   const { currentWorkspace } = useWorkspaceStore();
@@ -23,6 +23,9 @@ export default function Reports() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
   const [csat, setCsat] = useState<any>(null);
+  const [customReport, setCustomReport] = useState<any>(null);
+  const [customParams, setCustomParams] = useState({ metric: 'conversations', groupBy: 'day', dateFrom: '', dateTo: '' });
+  const [buildingReport, setBuildingReport] = useState(false);
 
   useEffect(() => {
     if (!currentWorkspace) return;
@@ -38,12 +41,24 @@ export default function Reports() {
   }, [currentWorkspace]);
 
 
+  const buildCustomReport = async () => {
+    if (!currentWorkspace) return;
+    setBuildingReport(true);
+    setCustomReport(null);
+    try {
+      const { data } = await customReportsApi.build(currentWorkspace.id, customParams);
+      setCustomReport(data);
+    } catch (e) { console.error(e); }
+    finally { setBuildingReport(false); }
+  };
+
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'lifecycle', label: 'Lifecycle' },
     { key: 'conversations', label: 'Conversations' },
     { key: 'leaderboard', label: 'Leaderboard' },
     { key: 'tags', label: 'Tags' },
     { key: 'csat', label: 'CSAT' },
+    { key: 'custom', label: '⚙️ Custom' },
   ];
 
   const maxLifecycle = lifecycle ? Math.max(...lifecycle.funnel.map((s: any) => s.count), 1) : 1;
@@ -331,6 +346,85 @@ export default function Reports() {
                 </div>
               )}
             </>
+          )}
+
+          {/* Custom Report Builder */}
+          {tab === 'custom' && (
+            <div className="max-w-3xl">
+              <h2 className="text-base font-semibold text-gray-900 mb-4">Custom Report Builder</h2>
+              <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-6">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Metric</label>
+                    <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      value={customParams.metric} onChange={e => setCustomParams(p => ({ ...p, metric: e.target.value }))}>
+                      <option value="conversations">Conversations</option>
+                      <option value="messages">Messages</option>
+                      <option value="csat">CSAT Scores</option>
+                      <option value="response_time">Response Time</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">Group By</label>
+                    <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      value={customParams.groupBy} onChange={e => setCustomParams(p => ({ ...p, groupBy: e.target.value }))}>
+                      <option value="day">Day</option>
+                      <option value="channel">Channel</option>
+                      <option value="agent">Agent</option>
+                      <option value="status">Status</option>
+                      <option value="score">Score</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">From</label>
+                    <input type="date" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      value={customParams.dateFrom} onChange={e => setCustomParams(p => ({ ...p, dateFrom: e.target.value }))} />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">To</label>
+                    <input type="date" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none"
+                      value={customParams.dateTo} onChange={e => setCustomParams(p => ({ ...p, dateTo: e.target.value }))} />
+                  </div>
+                </div>
+                <button onClick={buildCustomReport} disabled={buildingReport}
+                  className="flex items-center gap-2 bg-primary-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-primary-700 disabled:opacity-50">
+                  <PlayIcon className="w-4 h-4" />
+                  {buildingReport ? 'Building…' : 'Run Report'}
+                </button>
+              </div>
+
+              {customReport && (
+                <div className="bg-white border border-gray-100 rounded-2xl p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900 capitalize">
+                      {customReport.metric} by {customReport.groupBy}
+                    </h3>
+                    <p className="text-xs text-gray-500">{customReport.rows.length} data points</p>
+                  </div>
+                  {customReport.rows.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-8">No data for the selected period</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {customReport.rows.map((row: any, i: number) => {
+                        const label = row.date || row.label || String(i + 1);
+                        const value = row.count ?? row.avgMinutes ?? 0;
+                        const max = Math.max(...customReport.rows.map((r: any) => r.count ?? r.avgMinutes ?? 0), 1);
+                        const pct = Math.round((value / max) * 100);
+                        return (
+                          <div key={i} className="flex items-center gap-3">
+                            <span className="text-xs text-gray-500 w-24 flex-shrink-0 truncate">{label}</span>
+                            <div className="flex-1 bg-gray-100 rounded-full h-2">
+                              <div className="bg-primary-500 h-2 rounded-full" style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-xs font-semibold text-gray-700 w-12 text-right">{value}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

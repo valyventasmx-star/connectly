@@ -43,6 +43,13 @@ import emailChannelRoutes from './routes/emailChannel';
 import contactSegmentsRoutes from './routes/contactSegments';
 import twoFactorRoutes from './routes/twoFactor';
 import onboardingRoutes from './routes/onboarding';
+import knowledgeBaseRoutes from './routes/knowledgeBase';
+import scheduledMessagesRoutes from './routes/scheduledMessages';
+import shopifyRoutes from './routes/shopify';
+import importContactsRoutes from './routes/importContacts';
+import brandingRoutes from './routes/branding';
+import customReportsRoutes from './routes/customReports';
+import { startCronJobs } from './services/cron';
 
 const app = express();
 const httpServer = createServer(app);
@@ -94,6 +101,12 @@ app.use('/api/csat', csatRoutes);
 app.use('/api/workspaces/:workspaceId/automation-rules', automationRulesRoutes);
 app.use('/api/workspaces/:workspaceId/contact-segments', contactSegmentsRoutes);
 app.use('/api/workspaces/:workspaceId/onboarding', onboardingRoutes);
+app.use('/api/workspaces/:workspaceId/knowledge-base', knowledgeBaseRoutes);
+app.use('/api/workspaces/:workspaceId/conversations', scheduledMessagesRoutes);
+app.use('/api/workspaces/:workspaceId/shopify', shopifyRoutes);
+app.use('/api/workspaces/:workspaceId/contacts', importContactsRoutes);
+app.use('/api/workspaces/:workspaceId', brandingRoutes);
+app.use('/api/workspaces/:workspaceId/custom-reports', customReportsRoutes);
 app.use('/api/workspaces/:workspaceId/email', emailChannelRoutes);
 app.use('/api/email/inbound', emailChannelRoutes); // public inbound
 app.use('/api/2fa', twoFactorRoutes);
@@ -105,6 +118,7 @@ app.use('/api/webhooks', webhookRoutes);
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 
 initSocket(httpServer);
+startCronJobs();
 
 const PORT = parseInt(process.env.PORT || '3001');
 httpServer.listen(PORT, '0.0.0.0', () => {

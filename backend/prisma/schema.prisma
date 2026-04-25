@@ -39,27 +39,39 @@ model Workspace {
   aiPrompt             String?
   slaHours             Int       @default(24)
   businessHours        String?   // JSON: [{day:0,start:"09:00",end:"18:00",enabled:true}]
+  oooEnabled           Boolean   @default(false)
+  oooMessage           String?
   onboardingStep       Int       @default(0)
   onboardingCompleted  Boolean   @default(false)
+  // White-label
+  brandingName         String?
+  brandingLogo         String?
+  brandingColor        String?
+  // Usage tracking
+  messageCount         Int       @default(0)
+  contactCount         Int       @default(0)
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  members           WorkspaceMember[]
-  channels          Channel[]
-  contacts          Contact[]
-  conversations     Conversation[]
-  tags              Tag[]
-  broadcasts        Broadcast[]
-  savedResponses    SavedResponse[]
-  customFields      CustomField[]
-  outboundWebhooks  OutboundWebhook[]
-  templates         WhatsAppTemplate[]
-  inboxViews        InboxView[]
-  autoAssignRules   AutoAssignRule[]
-  apiKeys           ApiKey[]
-  auditLogs         AuditLog[]
-  automationRules   AutomationRule[]
-  contactSegments   ContactSegment[]
+  members              WorkspaceMember[]
+  channels             Channel[]
+  contacts             Contact[]
+  conversations        Conversation[]
+  tags                 Tag[]
+  broadcasts           Broadcast[]
+  savedResponses       SavedResponse[]
+  customFields         CustomField[]
+  outboundWebhooks     OutboundWebhook[]
+  templates            WhatsAppTemplate[]
+  inboxViews           InboxView[]
+  autoAssignRules      AutoAssignRule[]
+  apiKeys              ApiKey[]
+  auditLogs            AuditLog[]
+  automationRules      AutomationRule[]
+  contactSegments      ContactSegment[]
+  knowledgeArticles    KnowledgeArticle[]
+  scheduledMessages    ScheduledMessage[]
+  shopifyIntegration   ShopifyIntegration?
 }
 
 model Broadcast {
@@ -439,4 +451,44 @@ model Mention {
   workspaceId    String
   read           Boolean  @default(false)
   createdAt      DateTime @default(now())
+}
+
+model KnowledgeArticle {
+  id          String   @id @default(cuid())
+  title       String
+  content     String   @db.Text
+  category    String?
+  workspaceId String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ScheduledMessage {
+  id             String    @id @default(cuid())
+  content        String
+  type           String    @default("text")
+  conversationId String
+  workspaceId    String
+  scheduledAt    DateTime
+  sent           Boolean   @default(false)
+  sentAt         DateTime?
+  createdBy      String
+  senderName     String?
+  createdAt      DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model ShopifyIntegration {
+  id          String   @id @default(cuid())
+  shopDomain  String
+  accessToken String
+  enabled     Boolean  @default(true)
+  workspaceId String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

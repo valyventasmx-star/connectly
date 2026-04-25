@@ -2,8 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
-import { contactsApi, tagsApi } from '../api/client';
-import api from '../api/client';
+import { contactsApi, tagsApi, importApi } from '../api/client';
 import { Contact } from '../types';
 import Avatar from '../components/ui/Avatar';
 import Button from '../components/ui/Button';
@@ -65,7 +64,8 @@ export default function Contacts() {
   // CSV import
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(null);
+  const [importResult, setImportResult] = useState<{ total: number; created: number; updated: number; failed: number } | null>(null);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   useEffect(() => {
     if (currentWorkspace) load();
@@ -125,9 +125,8 @@ export default function Contacts() {
     setImporting(true);
     setImportResult(null);
     try {
-      const csv = await file.text();
-      const { data } = await api.post(`/workspaces/${currentWorkspace.id}/contacts/import`, { csv });
-      setImportResult({ created: data.created, skipped: data.skipped });
+      const { data } = await importApi.csv(currentWorkspace.id, file);
+      setImportResult(data);
       load();
     } catch (err: any) {
       alert(err.response?.data?.error || 'Import failed');
@@ -211,7 +210,7 @@ export default function Contacts() {
           <div className="flex items-center gap-2 flex-wrap">
             {importResult && (
               <span className="text-xs text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
-                ✅ {importResult.created} imported, {importResult.skipped} skipped
+                ✅ {importResult.created} created · {importResult.updated} updated{importResult.failed > 0 ? ` · ${importResult.failed} failed` : ''}
               </span>
             )}
             <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
