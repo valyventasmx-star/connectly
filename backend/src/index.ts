@@ -49,7 +49,12 @@ import shopifyRoutes from './routes/shopify';
 import importContactsRoutes from './routes/importContacts';
 import brandingRoutes from './routes/branding';
 import customReportsRoutes from './routes/customReports';
-import { startCronJobs } from './services/cron';
+import notificationsRoutes from './routes/notifications';
+import mediaUploadRoutes from './routes/mediaUpload';
+import flowBotsRoutes from './routes/flowBots';
+import liveChatRoutes from './routes/liveChat';
+import { startCronJobs, startDailyDigest } from './services/cron';
+import path from 'path';
 
 const app = express();
 const httpServer = createServer(app);
@@ -107,6 +112,13 @@ app.use('/api/workspaces/:workspaceId/shopify', shopifyRoutes);
 app.use('/api/workspaces/:workspaceId/contacts', importContactsRoutes);
 app.use('/api/workspaces/:workspaceId', brandingRoutes);
 app.use('/api/workspaces/:workspaceId/custom-reports', customReportsRoutes);
+app.use('/api/workspaces/:workspaceId/notifications', notificationsRoutes);
+app.use('/api/workspaces/:workspaceId/flow-bots', flowBotsRoutes);
+app.use('/api/media', mediaUploadRoutes);
+app.use('/api/workspaces/:workspaceId/live-chat', liveChatRoutes);
+app.use('/api/live-chat', liveChatRoutes); // public endpoints (widget config + conversation)
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 app.use('/api/workspaces/:workspaceId/email', emailChannelRoutes);
 app.use('/api/email/inbound', emailChannelRoutes); // public inbound
 app.use('/api/2fa', twoFactorRoutes);
@@ -119,6 +131,7 @@ app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Da
 
 initSocket(httpServer);
 startCronJobs();
+startDailyDigest();
 
 const PORT = parseInt(process.env.PORT || '3001');
 httpServer.listen(PORT, '0.0.0.0', () => {

@@ -187,4 +187,59 @@ router.get('/conversations/:conversationId/ai-summary', async (req: AuthRequest,
   }
 });
 
+// AI Intent Detection — detect intent of a message text
+router.post('/detect-intent', async (req: AuthRequest, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'AI not configured' });
+  const { text, messageId } = req.body;
+  if (!text) return res.status(400).json({ error: 'text required' });
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 50,
+      messages: [{
+        role: 'user',
+        content: `Classify this customer message into ONE of these intents: greeting, question, complaint, purchase_intent, support_request, feedback, farewell, escalation, other.\n\nMessage: "${text}"\n\nRespond with ONLY the intent label, nothing else.`,
+      }],
+    });
+    const intent = (response.content[0] as any).text.trim().toLowerCase().replace(/[^a-z_]/g, '');
+    if (messageId) {
+      await prisma.message.updateMany({ where: { id: messageId }, data: { intent } });
+    }
+    res.json({ intent });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// AI Quality Score — score an outbound agent message 1-5
+router.post('/score-quality', async (req: AuthRequest, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'AI not configured' });
+  const { messageId, agentMessage, customerMessage } = req.body;
+  if (!agentMessage) return res.status(400).json({ error: 'agentMessage required' });
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 50,
+      messages: [{
+        role: 'user',
+        content: `Rate this customer support response on a scale of 1-5 (1=poor, 5=excellent) based on clarity, helpfulness, tone, and professionalism.\n\n${customerMessage ? `Customer said: "${customerMessage}"\n\n` : ''}Agent replied: "${agentMessage}"\n\nRespond with ONLY a single digit (1-5), nothing else.`,
+      }],
+    });
+    const raw = (response.content[0] as any).text.trim();
+    const qualityScore = Math.min(5, Math.max(1, parseInt(raw) || 3));
+    if (messageId) {
+      await prisma.message.updateMany({ where: { id: messageId }, data: { qualityScore } });
+    }
+    res.json({ qualityScore });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;

@@ -72,6 +72,9 @@ model Workspace {
   knowledgeArticles    KnowledgeArticle[]
   scheduledMessages    ScheduledMessage[]
   shopifyIntegration   ShopifyIntegration?
+  notifications        Notification[]
+  flowBots             FlowBot[]
+  liveChatWidget       LiveChatWidget?
 }
 
 model Broadcast {
@@ -324,9 +327,13 @@ model Message {
   waMessageId    String?
   mediaUrl       String?
   mediaType      String?
+  mediaName      String?
+  mediaSize      Int?
   isAiReply      Boolean  @default(false)
   isNote         Boolean  @default(false)
   mentions       String?  // JSON array of user IDs mentioned
+  intent         String?  // AI-detected intent label
+  qualityScore   Int?     // AI quality score 1-5 for outbound messages
   conversationId String
   senderId       String?
   senderName     String?
@@ -489,6 +496,54 @@ model ShopifyIntegration {
   workspaceId String   @unique
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  type        String   // new_message | mention | assignment | sla_breach | csat | flow
+  title       String
+  body        String?
+  read        Boolean  @default(false)
+  userId      String
+  workspaceId String
+  entityType  String?  // conversation | contact
+  entityId    String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model FlowBot {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  active      Boolean  @default(false)
+  trigger     String   // JSON: {type:'keyword'|'any_message'|'first_message', keywords:[]}
+  nodes       String   @db.Text // JSON: array of flow nodes
+  edges       String   @db.Text // JSON: array of edges
+  channelId   String?
+  workspaceId String
+  runCount    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model LiveChatWidget {
+  id             String   @id @default(cuid())
+  workspaceId    String   @unique
+  channelId      String?
+  primaryColor   String   @default("#6366f1")
+  greeting       String   @default("Hi! How can we help you today?")
+  botName        String   @default("Support")
+  position       String   @default("bottom-right")
+  enabled        Boolean  @default(true)
+  allowedOrigins String?  // JSON array of domains
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

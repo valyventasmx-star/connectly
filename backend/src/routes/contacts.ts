@@ -147,4 +147,41 @@ router.delete('/:contactId', async (req: AuthRequest, res: Response) => {
   res.json({ message: 'Contact deleted' });
 });
 
+// Merge contacts: keep primaryId, absorb secondaryId
+router.post('/merge', async (req: AuthRequest, res: Response) => {
+  const { primaryId, secondaryId } = req.body;
+  if (!primaryId || !secondaryId) return res.status(400).json({ error: 'primaryId and secondaryId required' });
+  if (primaryId === secondaryId) return res.status(400).json({ error: 'Cannot merge contact with itself' });
+
+  try {
+    const [primary, secondary] = await Promise.all([
+      prisma.contact.findFirst({ where: { id: primaryId, workspaceId: req.params.workspaceId } }),
+      prisma.contact.findFirst({ where: { id: secondaryId, workspaceId: req.params.workspaceId } }),
+    ]);
+    if (!primary || !secondary) return res.status(404).json({ error: 'One or both contacts not found' });
+
+    await prisma.$transaction([
+      prisma.conversation.updateMany({ where: { contactId: secondaryId }, data: { contactId: primaryId } }),
+      prisma.contact.update({
+        where: { id: primaryId },
+        data: {
+          email: primary.email || secondary.email,
+          company: primary.company || secondary.company,
+          notes: [primary.notes, secondary.notes].filter(Boolean).join('\n\n'),
+        },
+      }),
+      prisma.contact.delete({ where: { id: secondaryId } }),
+    ]);
+
+    const merged = await prisma.contact.findUnique({
+      where: { id: primaryId },
+      include: { contactTags: { include: { tag: true } } },
+    });
+    res.json(merged);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Merge failed' });
+  }
+});
+
 export default router;

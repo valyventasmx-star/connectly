@@ -165,4 +165,33 @@ router.post('/:conversationId/unsnooze', async (req: AuthRequest, res: Response)
   res.json(conversation);
 });
 
+// Merge conversations: move all messages from secondaryId into primaryId, delete secondary
+router.post('/merge', async (req: AuthRequest, res: Response) => {
+  const { primaryId, secondaryId } = req.body;
+  if (!primaryId || !secondaryId) return res.status(400).json({ error: 'primaryId and secondaryId required' });
+  if (primaryId === secondaryId) return res.status(400).json({ error: 'Cannot merge conversation with itself' });
+
+  try {
+    const [primary, secondary] = await Promise.all([
+      prisma.conversation.findFirst({ where: { id: primaryId, workspaceId: req.params.workspaceId } }),
+      prisma.conversation.findFirst({ where: { id: secondaryId, workspaceId: req.params.workspaceId } }),
+    ]);
+    if (!primary || !secondary) return res.status(404).json({ error: 'One or both conversations not found' });
+
+    await prisma.$transaction([
+      prisma.message.updateMany({ where: { conversationId: secondaryId }, data: { conversationId: primaryId } }),
+      prisma.conversation.delete({ where: { id: secondaryId } }),
+    ]);
+
+    const merged = await prisma.conversation.findUnique({
+      where: { id: primaryId },
+      include: { contact: true, assignee: true, channel: true },
+    });
+    res.json(merged);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Merge failed' });
+  }
+});
+
 export default router;

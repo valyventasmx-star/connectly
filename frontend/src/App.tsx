@@ -23,6 +23,8 @@ import KnowledgeBase from './pages/KnowledgeBase';
 import Pipeline from './pages/Pipeline';
 import Integrations from './pages/Integrations';
 import ApiDocs from './pages/ApiDocs';
+import FlowBuilder, { FlowBuilderList } from './pages/FlowBuilder';
+import LiveChat from './pages/LiveChat';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -60,6 +62,9 @@ export default function App() {
         <Route path="/pipeline" element={<ProtectedRoute><Pipeline /></ProtectedRoute>} />
         <Route path="/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
         <Route path="/api-docs" element={<ProtectedRoute><ApiDocs /></ProtectedRoute>} />
+        <Route path="/flow-builder" element={<ProtectedRoute><FlowBuilderList /></ProtectedRoute>} />
+        <Route path="/flow-builder/:id" element={<ProtectedRoute><FlowBuilder /></ProtectedRoute>} />
+        <Route path="/live-chat" element={<ProtectedRoute><LiveChat /></ProtectedRoute>} />
         <Route path="/legal" element={<Legal />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

@@ -88,8 +88,13 @@ export const conversationsApi = {
 export const messagesApi = {
   list: (workspaceId: string, conversationId: string, params?: any) =>
     api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/messages`, { params }),
-  send: (workspaceId: string, conversationId: string, content: string, type?: string, isNote?: boolean) =>
-    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/messages`, { content, type, isNote }),
+  send: (workspaceId: string, conversationId: string, content: string, type?: string, isNote?: boolean, media?: { url: string; name: string; size: number; type: string }) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/messages`, {
+      content,
+      type: media ? (media.type.startsWith('image/') ? 'image' : media.type.startsWith('audio/') ? 'audio' : media.type.startsWith('video/') ? 'video' : 'document') : (type || 'text'),
+      isNote,
+      ...(media ? { mediaUrl: media.url, mediaType: media.type, mediaName: media.name, mediaSize: media.size } : {}),
+    }),
 };
 
 // Search
@@ -336,6 +341,60 @@ export const emailChannelApi = {
     api.post(`/workspaces/${workspaceId}/email/test`, { channelId, ...config }),
   send: (workspaceId: string, data: any) =>
     api.post(`/workspaces/${workspaceId}/email/send`, data),
+};
+
+// Notifications
+export const notificationsApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/notifications`),
+  markRead: (workspaceId: string, id: string) => api.patch(`/workspaces/${workspaceId}/notifications/${id}/read`),
+  markAllRead: (workspaceId: string) => api.patch(`/workspaces/${workspaceId}/notifications/mark-all-read`),
+  delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/notifications/${id}`),
+  clearAll: (workspaceId: string) => api.delete(`/workspaces/${workspaceId}/notifications`),
+};
+
+// Media Upload
+export const mediaApi = {
+  upload: (file: File) => {
+    const form = new FormData();
+    form.append('file', file);
+    return api.post('/media/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+};
+
+// Flow Bots
+export const flowBotsApi = {
+  list: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/flow-bots`),
+  get: (workspaceId: string, id: string) => api.get(`/workspaces/${workspaceId}/flow-bots/${id}`),
+  create: (workspaceId: string, data: any) => api.post(`/workspaces/${workspaceId}/flow-bots`, data),
+  update: (workspaceId: string, id: string, data: any) => api.patch(`/workspaces/${workspaceId}/flow-bots/${id}`, data),
+  delete: (workspaceId: string, id: string) => api.delete(`/workspaces/${workspaceId}/flow-bots/${id}`),
+  toggle: (workspaceId: string, id: string) => api.post(`/workspaces/${workspaceId}/flow-bots/${id}/toggle`),
+};
+
+// Live Chat Widget
+export const liveChatApi = {
+  get: (workspaceId: string) => api.get(`/workspaces/${workspaceId}/live-chat`),
+  save: (workspaceId: string, data: any) => api.put(`/workspaces/${workspaceId}/live-chat`, data),
+};
+
+// Contact Merge
+export const contactMergeApi = {
+  merge: (workspaceId: string, primaryId: string, secondaryId: string) =>
+    api.post(`/workspaces/${workspaceId}/contacts/merge`, { primaryId, secondaryId }),
+};
+
+// Conversation Merge
+export const conversationMergeApi = {
+  merge: (workspaceId: string, primaryId: string, secondaryId: string) =>
+    api.post(`/workspaces/${workspaceId}/conversations/merge`, { primaryId, secondaryId }),
+};
+
+// AI intent & quality
+export const aiScoreApi = {
+  detectIntent: (workspaceId: string, text: string, messageId?: string) =>
+    api.post(`/workspaces/${workspaceId}/detect-intent`, { text, messageId }),
+  scoreQuality: (workspaceId: string, agentMessage: string, customerMessage?: string, messageId?: string) =>
+    api.post(`/workspaces/${workspaceId}/score-quality`, { agentMessage, customerMessage, messageId }),
 };
 
 export default api;

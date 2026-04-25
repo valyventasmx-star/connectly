@@ -29,6 +29,7 @@ import { useWorkspaceStore } from '../../store/workspace';
 import { useThemeStore } from '../../store/theme';
 import Avatar from '../ui/Avatar';
 import WorkspaceSwitcher from './WorkspaceSwitcher';
+import NotificationBell from '../ui/NotificationBell';
 
 const navItems = [
   { to: '/dashboard', icon: HomeIcon, label: 'Dashboard' },
@@ -43,6 +44,8 @@ const navItems = [
   { to: '/reports', icon: DocumentChartBarIcon, label: 'Reports' },
   { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
   { to: '/integrations', icon: PuzzlePieceIcon, label: 'Integrations' },
+  { to: '/flow-builder', icon: BoltIcon, label: 'Flow Builder' },
+  { to: '/live-chat', icon: ChatBubbleLeftRightIcon, label: 'Live Chat Widget' },
   { to: '/workspaces', icon: BuildingOfficeIcon, label: 'Workspaces' },
 ];
 
@@ -97,6 +100,7 @@ export default function Sidebar() {
 
         {/* Bottom actions */}
         <div className="flex flex-col gap-1">
+          <NotificationBell />
           <NavLink to="/ai-settings" title="AI Settings" className={({ isActive }) => `sidebar-icon ${isActive ? 'active' : ''}`}>
             <SparklesIcon className="w-5 h-5" />
           </NavLink>

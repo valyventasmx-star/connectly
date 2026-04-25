@@ -7,13 +7,22 @@ import {
   MagnifyingGlassIcon,
   LockClosedIcon,
   DocumentTextIcon,
+  XMarkIcon,
+  PhotoIcon,
 } from '@heroicons/react/24/outline';
-import { savedResponsesApi, templatesApi } from '../../api/client';
+import { savedResponsesApi, templatesApi, mediaApi } from '../../api/client';
 import { useWorkspaceStore } from '../../store/workspace';
 import { SavedResponse } from '../../types';
 
+interface MediaAttachment {
+  url: string;
+  name: string;
+  size: number;
+  type: string;
+}
+
 interface Props {
-  onSend: (content: string, isNote?: boolean) => Promise<void>;
+  onSend: (content: string, isNote?: boolean, media?: MediaAttachment) => Promise<void>;
   onTyping?: () => void;
   disabled?: boolean;
 }
@@ -30,10 +39,28 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
   const [templates, setTemplates] = useState<any[]>([]);
   const [templateSearch, setTemplateSearch] = useState('');
   const [loadingTpl, setLoadingTpl] = useState(false);
+  const [attachment, setAttachment] = useState<MediaAttachment | null>(null);
+  const [uploading, setUploading] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const templatePopoverRef = useRef<HTMLDivElement>(null);
   const { currentWorkspace } = useWorkspaceStore();
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const r = await mediaApi.upload(file);
+      setAttachment(r.data);
+    } catch (err) {
+      alert('File upload failed. Please try again.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -106,12 +133,14 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
 
   const handleSend = async () => {
     const text = content.trim();
-    if (!text || sending || disabled) return;
+    if ((!text && !attachment) || sending || disabled) return;
     setSending(true);
+    const currentAttachment = attachment;
     setContent('');
+    setAttachment(null);
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
     try {
-      await onSend(text, noteMode);
+      await onSend(text || (currentAttachment?.name || 'File'), noteMode, currentAttachment || undefined);
     } finally {
       setSending(false);
       textareaRef.current?.focus();
@@ -152,10 +181,35 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
         </div>
       )}
 
+      {/* Attachment preview */}
+      {attachment && (
+        <div className="flex items-center gap-2 mb-2 px-1 py-1.5 bg-blue-50 rounded-lg border border-blue-100">
+          {attachment.type.startsWith('image/') ? (
+            <PhotoIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          ) : (
+            <PaperClipIcon className="w-4 h-4 text-blue-500 flex-shrink-0" />
+          )}
+          <span className="text-xs text-blue-700 font-medium truncate flex-1">{attachment.name}</span>
+          <span className="text-xs text-blue-500 flex-shrink-0">{(attachment.size / 1024).toFixed(0)} KB</span>
+          <button onClick={() => setAttachment(null)} className="text-blue-400 hover:text-blue-600">
+            <XMarkIcon className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileSelect}
+        accept="image/*,video/*,.pdf,.doc,.docx,.xls,.xlsx,.csv,.txt,.zip,.mp3,.ogg"
+      />
+
       <div className={`flex items-end gap-3 rounded-xl border px-4 py-3 transition-colors ${borderClass}`}>
         <div className="flex gap-2 pb-0.5 relative" ref={popoverRef}>
-          <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Attach file">
-            <PaperClipIcon className="w-5 h-5" />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={disabled || uploading}
+            className="text-gray-400 hover:text-gray-600 transition-colors disabled:opacity-40"
+            title="Attach file"
+          >
+            {uploading ? <div className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" /> : <PaperClipIcon className="w-5 h-5" />}
           </button>
           <button className="text-gray-400 hover:text-gray-600 transition-colors" title="Emoji">
             <FaceSmileIcon className="w-5 h-5" />
@@ -304,7 +358,7 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
         />
         <button
           onClick={handleSend}
-          disabled={!content.trim() || sending || disabled}
+          disabled={(!content.trim() && !attachment) || sending || disabled}
           className={`flex-shrink-0 w-8 h-8 flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-lg transition-all ${
             isNote ? 'bg-amber-500 hover:bg-amber-600' : 'bg-primary-600 hover:bg-primary-700'
           }`}

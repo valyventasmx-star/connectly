@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Conversation, Message } from '../../types';
-import { messagesApi, csatApi, aiApi, snoozeApi, scheduledMessagesApi } from '../../api/client';
+import { messagesApi, csatApi, aiApi, snoozeApi, scheduledMessagesApi, conversationMergeApi, conversationsApi } from '../../api/client';
 import { useWorkspaceStore } from '../../store/workspace';
 import { getSocket } from '../../hooks/useSocket';
 import MessageBubble from './MessageBubble';
@@ -8,7 +8,7 @@ import ChatInput from './ChatInput';
 import ContactPanel from './ContactPanel';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
-import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon, SparklesIcon, DocumentTextIcon, MoonIcon, ClockIcon, XMarkIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon, SparklesIcon, DocumentTextIcon, MoonIcon, ClockIcon, XMarkIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 interface Props {
@@ -28,6 +28,10 @@ export default function ChatArea({ conversation }: Props) {
   const [showSnooze, setShowSnooze] = useState(false);
   const [snoozeUntil, setSnoozeUntil] = useState('');
   const [showSchedule, setShowSchedule] = useState(false);
+  const [showMergeConv, setShowMergeConv] = useState(false);
+  const [mergeConvId, setMergeConvId] = useState('');
+  const [mergingConv, setMergingConv] = useState(false);
+  const [conversations, setConversations] = useState<any[]>([]);
   const [scheduleContent, setScheduleContent] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
   const [scheduledMessages, setScheduledMessages] = useState<any[]>([]);
@@ -125,18 +129,45 @@ export default function ChatArea({ conversation }: Props) {
     }, 2000);
   }, [emitTyping]);
 
-  const handleSend = async (content: string, isNote = false) => {
+  const handleSend = async (content: string, isNote = false, media?: { url: string; name: string; size: number; type: string }) => {
     if (!currentWorkspace) return;
     clearTimeout(typingDebounceRef.current);
     isTypingRef.current = false;
     emitTyping(false);
-    const { data } = await messagesApi.send(currentWorkspace.id, conversation.id, content, undefined, isNote);
+    const { data } = await messagesApi.send(currentWorkspace.id, conversation.id, content, undefined, isNote, media);
     setMessages((prev) => [...prev, data]);
     scrollToBottom();
   };
 
   const handleReactionUpdate = (messageId: string, reactions: any[]) => {
     setMessages(prev => prev.map(m => m.id === messageId ? { ...m, reactions } : m));
+  };
+
+  const openMergeConv = async () => {
+    if (!currentWorkspace) return;
+    setShowMergeConv(true);
+    try {
+      const { data } = await conversationsApi.list(currentWorkspace.id, { limit: 50 });
+      setConversations((data.conversations || data).filter((c: any) => c.id !== conversation.id));
+    } catch { /* ignore */ }
+  };
+
+  const handleMergeConv = async () => {
+    if (!currentWorkspace || !mergeConvId) return;
+    setMergingConv(true);
+    try {
+      await conversationMergeApi.merge(currentWorkspace.id, conversation.id, mergeConvId);
+      setShowMergeConv(false);
+      setMergeConvId('');
+      // Reload messages after merge
+      const { data } = await messagesApi.list(currentWorkspace.id, conversation.id);
+      setMessages(data);
+      alert('✅ Conversations merged successfully');
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Merge failed');
+    } finally {
+      setMergingConv(false);
+    }
   };
 
   const handleSendCsat = async () => {
@@ -259,6 +290,11 @@ export default function ChatArea({ conversation }: Props) {
               title="Schedule message">
               <ClockIcon className="w-5 h-5" />
             </button>
+            <button onClick={openMergeConv}
+              className="p-1.5 rounded-lg text-gray-400 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+              title="Merge conversation">
+              <ArrowsRightLeftIcon className="w-5 h-5" />
+            </button>
             {conversation.status === 'resolved' && (
               <button onClick={handleSendCsat}
                 className="p-1.5 rounded-lg text-gray-400 hover:text-yellow-500 hover:bg-yellow-50 transition-colors"
@@ -343,6 +379,31 @@ export default function ChatArea({ conversation }: Props) {
                 className="bg-blue-600 text-white px-3 py-1 rounded-lg text-xs font-medium hover:bg-blue-700 disabled:opacity-50">
                 Schedule
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* Merge Conversation Panel */}
+        {showMergeConv && (
+          <div className="px-4 py-3 bg-purple-50 border-b border-purple-100">
+            <p className="text-xs font-semibold text-purple-700 mb-2 flex items-center gap-1"><ArrowsRightLeftIcon className="w-3.5 h-3.5" />Merge into another conversation</p>
+            <p className="text-xs text-purple-600 mb-2">All messages from this conversation will be moved to the selected one.</p>
+            <div className="flex gap-2">
+              <select
+                className="flex-1 text-xs border border-purple-200 rounded-lg px-2 py-1.5 bg-white"
+                value={mergeConvId}
+                onChange={e => setMergeConvId(e.target.value)}
+              >
+                <option value="">Select target conversation…</option>
+                {conversations.map((c: any) => (
+                  <option key={c.id} value={c.id}>{c.contact?.name || 'Unknown'} — {new Date(c.lastMessageAt || c.createdAt).toLocaleDateString()}</option>
+                ))}
+              </select>
+              <button onClick={handleMergeConv} disabled={!mergeConvId || mergingConv}
+                className="px-3 py-1.5 bg-purple-600 text-white text-xs rounded-lg disabled:opacity-50">
+                {mergingConv ? '…' : 'Merge'}
+              </button>
+              <button onClick={() => setShowMergeConv(false)} className="px-2 py-1.5 text-gray-400 text-xs rounded-lg hover:bg-white">Cancel</button>
             </div>
           </div>
         )}
