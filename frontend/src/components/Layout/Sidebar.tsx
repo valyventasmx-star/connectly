@@ -120,9 +120,16 @@ export default function Sidebar() {
           ))}
 
           {user?.isAdmin && (
-            <SidebarIcon to="/admin" label="Admin">
-              <ShieldCheckIcon className="w-5 h-5" />
-            </SidebarIcon>
+            <NavLink
+              to="/admin"
+              title="Admin Panel"
+              className={({ isActive }) =>
+                `sidebar-icon flex-shrink-0 relative ${isActive ? 'active' : ''}`
+              }
+            >
+              <ShieldCheckIcon className="w-5 h-5 text-purple-400" />
+              <span className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-purple-500 rounded-full" />
+            </NavLink>
           )}
         </nav>
 
