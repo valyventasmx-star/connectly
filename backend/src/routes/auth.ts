@@ -51,7 +51,7 @@ router.post('/login', async (req: Request, res: Response) => {
     if (!valid) return res.status(401).json({ error: 'Invalid credentials' });
 
     const token = jwt.sign({ id: user.id, email: user.email }, process.env.JWT_SECRET!, { expiresIn: '30d' });
-    res.json({ token, user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar } });
+    res.json({ token, user: { id: user.id, name: user.name, email: user.email, avatar: user.avatar, isAdmin: user.isAdmin } });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -60,7 +60,7 @@ router.post('/login', async (req: Request, res: Response) => {
 router.get('/me', authenticate, async (req: AuthRequest, res: Response) => {
   const user = await prisma.user.findUnique({
     where: { id: req.user!.id },
-    select: { id: true, name: true, email: true, avatar: true, createdAt: true },
+    select: { id: true, name: true, email: true, avatar: true, createdAt: true, isAdmin: true },
   });
   res.json(user);
 });
