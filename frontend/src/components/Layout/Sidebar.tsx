@@ -18,6 +18,7 @@ import {
   BookOpenIcon,
   PuzzlePieceIcon,
   ShieldCheckIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -39,6 +40,7 @@ const primaryNav = [
   { to: '/knowledge-base', icon: BookOpenIcon,          label: 'Knowledge Base' },
   { to: '/integrations',   icon: PuzzlePieceIcon,       label: 'Integrations' },
   { to: '/workspaces',     icon: BuildingOfficeIcon,    label: 'Workspaces' },
+  { to: '/billing',        icon: CreditCardIcon,        label: 'Billing' },
 ];
 
 function SidebarIcon({
