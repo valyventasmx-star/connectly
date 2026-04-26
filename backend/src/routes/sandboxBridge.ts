@@ -14,7 +14,7 @@
  *  5. Granular try/catch around every DB write with typed, descriptive logs
  *  6. Phone partially masked in all log output  (e.g. "52****7890")
  *  7. In-memory sliding-window rate limiter: 10 req / phone / 60 s → 429
- *  8. Sandbox-only: rejects any request not targeting WORKSPACE_SLUG
+ *  8. workspaceSlug in body routes to any workspace (falls back to breton_demo)
  *
  * POST /api/sandbox/ingest
  * Headers: X-Bridge-Secret: <SANDBOX_BRIDGE_SECRET>
@@ -31,6 +31,9 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { getIO } from '../services/socket';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
 
@@ -38,7 +41,6 @@ const router = Router();
 // Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const WORKSPACE_SLUG      = 'breton_demo';
 const SANDBOX_CHANNEL_NAME = 'WhatsApp Sandbox';
 const LOG = '[SANDBOX_BRIDGE]';
 
@@ -151,6 +153,37 @@ function authGuard(req: Request, res: Response): boolean {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Media upload — saves WhatsApp images to disk and returns a permanent URL
+// POST /api/sandbox/media-upload   (multipart/form-data, field name: "file")
+// ─────────────────────────────────────────────────────────────────────────────
+
+const sandboxMediaDir = path.join(process.cwd(), 'uploads', 'sandbox-media');
+if (!fs.existsSync(sandboxMediaDir)) fs.mkdirSync(sandboxMediaDir, { recursive: true });
+
+const _multerStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, sandboxMediaDir),
+  filename: (_req, file, cb) => {
+    const ext  = path.extname(file.originalname) || '.bin';
+    const name = `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+    cb(null, name);
+  },
+});
+const _upload = multer({ storage: _multerStorage, limits: { fileSize: 25 * 1024 * 1024 } });
+
+router.post('/media-upload', _upload.single('file'), (req: Request, res: Response) => {
+  if (!authGuard(req, res)) return;
+  if (!req.file) {
+    res.status(400).json({ error: 'No file in request (field name must be "file")' });
+    return;
+  }
+  const backendUrl = (process.env.BACKEND_URL ?? '').replace(/\/$/, '')
+    || `http://localhost:${process.env.PORT ?? 3001}`;
+  const url = `${backendUrl}/uploads/sandbox-media/${req.file.filename}`;
+  console.log(`${LOG} [SANDBOX_MEDIA] Saved: ${req.file.filename} (${req.file.size} bytes) → ${url}`);
+  res.json({ ok: true, url });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Route
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -166,14 +199,20 @@ router.post('/ingest', async (req: Request, res: Response) => {
     botReply,
     waMessageId,
     contactName,
+    workspaceSlug,
     source = 'whatsapp_sandbox',
+    mediaUrl,
+    mediaType,
   } = req.body as {
-    phone?:       string;
-    userText?:    string;
-    botReply?:    string;
-    waMessageId?: string;
-    contactName?: string;
-    source?:      string;
+    phone?:          string;
+    userText?:       string;
+    botReply?:       string;
+    waMessageId?:    string;
+    contactName?:    string;
+    workspaceSlug?:  string;
+    source?:         string;
+    mediaUrl?:       string;
+    mediaType?:      string;
   };
 
   if (!rawPhone || typeof rawPhone !== 'string' ||
@@ -182,6 +221,15 @@ router.post('/ingest', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'phone, userText and botReply are required strings' });
     return;
   }
+
+  // Sanitise optional media fields
+  const safeMediaUrl  = (mediaUrl  && typeof mediaUrl  === 'string') ? mediaUrl.slice(0, 2048)  : undefined;
+  const safeMediaType = (mediaType && typeof mediaType === 'string') ? mediaType.slice(0, 128)   : undefined;
+
+  // workspaceSlug is optional for backward compat — falls back to 'breton_demo'
+  const targetSlug = (workspaceSlug && typeof workspaceSlug === 'string')
+    ? workspaceSlug.trim().toLowerCase()
+    : 'breton_demo';
 
   // ── 2 ▸ Normalise phone ─────────────────────────────────────────────────
   const phone   = normalizePhone(rawPhone);
@@ -245,7 +293,7 @@ router.post('/ingest', async (req: Request, res: Response) => {
   let workspace: { id: string; slaHours: number } | null = null;
   try {
     workspace = await prisma.workspace.findUnique({
-      where: { slug: WORKSPACE_SLUG },
+      where: { slug: targetSlug },
       select: { id: true, slaHours: true },
     });
   } catch (err) {
@@ -255,9 +303,9 @@ router.post('/ingest', async (req: Request, res: Response) => {
   }
 
   if (!workspace) {
-    console.error(`${LOG} WORKSPACE_NOT_FOUND slug=${WORKSPACE_SLUG} – run scripts/seedBretonDemo.ts`);
+    console.error(`${LOG} WORKSPACE_NOT_FOUND slug=${targetSlug}`);
     res.status(404).json({
-      error: `Workspace "${WORKSPACE_SLUG}" not found. Run backend/scripts/seedBretonDemo.ts first.`,
+      error: `Workspace "${targetSlug}" not found. Create it in the app first, then pass its slug as workspaceSlug in the request body.`,
     });
     return;
   }
@@ -408,6 +456,13 @@ router.post('/ingest', async (req: Request, res: Response) => {
     }
 
     if (!inboundMsg) {
+      // Derive message type from MIME type when media is present
+      const msgType = safeMediaType?.startsWith('image/')    ? 'image'
+                    : safeMediaType?.startsWith('video/')    ? 'video'
+                    : safeMediaType?.startsWith('audio/')    ? 'audio'
+                    : safeMediaType                          ? 'document'
+                    : 'text';
+
       inboundMsg = await prisma.message.create({
         data: {
           conversationId: conversation.id,
@@ -416,13 +471,20 @@ router.post('/ingest', async (req: Request, res: Response) => {
           status:     'delivered',
           waMessageId: safeWaId ?? null,
           senderName: contact.name,
+          type:       msgType,
+          mediaUrl:   safeMediaUrl   ?? null,
+          mediaType:  safeMediaType  ?? null,
         },
         select: { id: true },
       });
-      console.log(
-        `${LOG} [MESSAGE_SAVED] inbound id=${inboundMsg.id}`,
-        `text="${safeUserText.slice(0, 60)}${safeUserText.length > 60 ? '…' : ''}"`,
-      );
+      if (safeMediaUrl) {
+        console.log(`${LOG} [MESSAGE_SAVED] inbound id=${inboundMsg.id} type=${msgType} mediaUrl=${safeMediaUrl}`);
+      } else {
+        console.log(
+          `${LOG} [MESSAGE_SAVED] inbound id=${inboundMsg.id}`,
+          `text="${safeUserText.slice(0, 60)}${safeUserText.length > 60 ? '…' : ''}"`,
+        );
+      }
     }
   } catch (err) {
     console.error(`${LOG} DB_ERROR step=inbound_message phone=${phoneSafe}:`, (err as Error).message);
@@ -496,6 +558,13 @@ router.post('/ingest', async (req: Request, res: Response) => {
         conversationId: conversation.id,
         content:   safeUserText,
         direction: 'inbound',
+        type:      safeMediaType?.startsWith('image/') ? 'image'
+                 : safeMediaType?.startsWith('video/') ? 'video'
+                 : safeMediaType?.startsWith('audio/') ? 'audio'
+                 : safeMediaType                       ? 'document'
+                 : 'text',
+        mediaUrl:  safeMediaUrl,
+        mediaType: safeMediaType,
         createdAt: new Date(),
         conversation: convPayload,
       });
