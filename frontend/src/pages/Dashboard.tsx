@@ -18,7 +18,7 @@ const CHANNEL_ICONS: Record<string, string> = { whatsapp: '💬', messenger: '�
 export default function Dashboard() {
   const { currentWorkspace, setActiveConversation } = useWorkspaceStore();
   const [data, setData] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -29,16 +29,6 @@ export default function Dashboard() {
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [currentWorkspace]);
-
-  if (loading) {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-full">
-          <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full" />
-        </div>
-      </AppLayout>
-    );
-  }
 
   const { stats = {}, daily = [], recentConversations = [] } = data || {};
   const maxDaily = Math.max(...daily.map((d: any) => d.count), 1);
@@ -70,7 +60,18 @@ export default function Dashboard() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {!currentWorkspace && (
+            <div className="flex items-center justify-center h-40 text-gray-400 text-sm">
+              Select a workspace to view your dashboard
+            </div>
+          )}
+          {loading && (
+            <div className="flex items-center justify-center h-40">
+              <div className="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full" />
+            </div>
+          )}
           {/* Stat Cards */}
+          {!loading && currentWorkspace && (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {statCards.map((s) => (
               <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -82,8 +83,9 @@ export default function Dashboard() {
               </div>
             ))}
           </div>
+          )}
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {!loading && currentWorkspace && <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* 7-day trend chart */}
             <div className="bg-white rounded-2xl border border-gray-100 p-6 lg:col-span-1">
               <h3 className="text-sm font-semibold text-gray-900 mb-4">New conversations — 7 days</h3>
@@ -158,7 +160,7 @@ export default function Dashboard() {
                 )}
               </div>
             </div>
-          </div>
+          </div>}
         </div>
       </div>
     </AppLayout>

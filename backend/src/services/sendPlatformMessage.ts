@@ -37,6 +37,18 @@ export async function sendTelegramMessage(botToken: string, chatId: string, text
   });
 }
 
+// ─── Twilio SMS ────────────────────────────────────────────────────────────
+export async function sendSmsMessage(accountSid: string, authToken: string, from: string, to: string, text: string) {
+  return axios.post(
+    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    new URLSearchParams({ To: to, From: from, Body: text }),
+    {
+      auth: { username: accountSid, password: authToken },
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    }
+  );
+}
+
 // ─── Unified dispatcher ────────────────────────────────────────────────────
 export async function sendPlatformMessage(channel: any, contact: any, text: string): Promise<string | undefined> {
   try {
@@ -55,6 +67,10 @@ export async function sendPlatformMessage(channel: any, contact: any, text: stri
     if (channel.type === 'telegram' && channel.telegramBotToken && contact.externalId) {
       const r = await sendTelegramMessage(channel.telegramBotToken, contact.externalId, text);
       return String(r.data?.result?.message_id);
+    }
+    if (channel.type === 'sms' && channel.twilioAccountSid && channel.twilioAuthToken && channel.twilioFromNumber && contact.phone) {
+      const r = await sendSmsMessage(channel.twilioAccountSid, channel.twilioAuthToken, channel.twilioFromNumber, contact.phone, text);
+      return r.data?.sid;
     }
   } catch (e: any) {
     console.error(`Failed to send via ${channel.type}:`, e.response?.data || e.message);

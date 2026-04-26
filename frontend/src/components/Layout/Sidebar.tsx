@@ -23,6 +23,7 @@ import {
   ViewColumnsIcon,
   PuzzlePieceIcon,
   CodeBracketIcon,
+  TrophyIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -43,6 +44,7 @@ const navItems = [
   { to: '/knowledge-base', icon: BookOpenIcon, label: 'Knowledge Base' },
   { to: '/reports', icon: DocumentChartBarIcon, label: 'Reports' },
   { to: '/analytics', icon: ChartBarIcon, label: 'Analytics' },
+  { to: '/leaderboard', icon: TrophyIcon, label: 'Leaderboard' },
   { to: '/integrations', icon: PuzzlePieceIcon, label: 'Integrations' },
   { to: '/flow-builder', icon: BoltIcon, label: 'Flow Builder' },
   { to: '/live-chat', icon: ChatBubbleLeftRightIcon, label: 'Live Chat Widget' },
@@ -83,7 +85,7 @@ export default function Sidebar() {
         </button>
 
         {/* Nav items */}
-        <nav className="flex-1 flex flex-col gap-1">
+        <nav className="flex-1 flex flex-col gap-1 overflow-y-auto min-h-0 scrollbar-hide">
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}

@@ -27,7 +27,7 @@ export default function Settings() {
   const [savingPassword, setSavingPassword] = useState(false);
   const [profileMsg, setProfileMsg] = useState('');
   const [passwordMsg, setPasswordMsg] = useState('');
-  const [tab, setTab] = useState<'profile' | 'password' | '2fa' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks' | 'api-keys' | 'audit-log' | 'auto-assign' | 'business-hours' | 'branding' | 'usage'>('profile');
+  const [tab, setTab] = useState<'profile' | 'password' | '2fa' | 'notifications' | 'saved-responses' | 'custom-fields' | 'templates' | 'webhooks' | 'api-keys' | 'audit-log' | 'auto-assign' | 'business-hours' | 'branding' | 'usage' | 'members'>('profile');
 
   // Saved responses
   const [responses, setResponses] = useState<SavedResponse[]>([]);
@@ -66,6 +66,11 @@ export default function Settings() {
   // Audit log
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditLoading, setAuditLoading] = useState(false);
+
+  // Members / Roles
+  const [membersData, setMembersData] = useState<any[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [updatingMember, setUpdatingMember] = useState<string | null>(null);
 
   // Auto-assign rules
   const [autoRules, setAutoRules] = useState<any[]>([]);
@@ -205,6 +210,15 @@ export default function Settings() {
     }
     if (tab === 'usage') {
       brandingApi.getUsage(currentWorkspace.id).then(({ data }) => setUsage(data)).catch(console.error);
+    }
+    if (tab === 'members') {
+      setMembersLoading(true);
+      import('../api/client').then(({ default: api }) =>
+        api.get(`/workspaces/${currentWorkspace.id}/members`)
+          .then(({ data }) => setMembersData(data))
+          .catch(console.error)
+          .finally(() => setMembersLoading(false))
+      );
     }
   }, [tab, currentWorkspace]);
 
@@ -374,6 +388,7 @@ export default function Settings() {
     { key: 'usage', label: 'Usage' },
     { key: 'api-keys', label: 'API Keys' },
     { key: 'audit-log', label: 'Audit Log' },
+    { key: 'members', label: 'Members & Roles' },
   ] as const;
 
   return (
@@ -387,7 +402,7 @@ export default function Settings() {
 
         <div className="flex flex-1 overflow-hidden">
           {/* Sidebar tabs */}
-          <div className="w-56 border-r border-gray-100 bg-white p-4 flex-shrink-0">
+          <div className="w-56 border-r border-gray-100 bg-white p-4 flex-shrink-0 overflow-y-auto">
             <nav className="space-y-1">
               {tabs.map(({ key, label }) => (
                 <button
@@ -1234,6 +1249,78 @@ export default function Settings() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Members & Roles */}
+            {tab === 'members' && (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-1">Members & Roles</h3>
+                  <p className="text-xs text-gray-500">Manage team members and their permissions in this workspace</p>
+                </div>
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
+                  <strong>Role permissions:</strong> Admin — full access · Supervisor — manage agents & view reports · Agent — handle conversations · Viewer — read-only
+                </div>
+                {membersLoading ? (
+                  <div className="flex justify-center py-12"><div className="animate-spin w-5 h-5 border-2 border-primary-500 border-t-transparent rounded-full" /></div>
+                ) : membersData.length === 0 ? (
+                  <div className="text-center py-10 border-2 border-dashed border-gray-200 rounded-xl text-gray-400 text-sm">No members found</div>
+                ) : (
+                  <div className="space-y-2">
+                    {membersData.map(m => (
+                      <div key={m.id} className="bg-white border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-sm font-bold flex-shrink-0">
+                            {m.user.name?.[0] || '?'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{m.user.name}</p>
+                            <p className="text-xs text-gray-400 truncate">{m.user.email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <select
+                            value={m.role}
+                            disabled={updatingMember === m.id}
+                            onChange={async (e) => {
+                              if (!currentWorkspace) return;
+                              const newRole = e.target.value;
+                              setUpdatingMember(m.id);
+                              try {
+                                const { default: api } = await import('../api/client');
+                                const { data } = await api.patch(`/workspaces/${currentWorkspace.id}/members/${m.id}`, { role: newRole });
+                                setMembersData(prev => prev.map(x => x.id === m.id ? { ...x, role: data.role } : x));
+                              } catch (err: any) {
+                                alert(err.response?.data?.error || 'Failed to update role');
+                              } finally {
+                                setUpdatingMember(null);
+                              }
+                            }}
+                            className="border border-gray-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                          >
+                            <option value="admin">Admin</option>
+                            <option value="supervisor">Supervisor</option>
+                            <option value="agent">Agent</option>
+                            <option value="viewer">Viewer</option>
+                          </select>
+                          <TrashIcon
+                            className="w-4 h-4 text-gray-400 hover:text-red-500 cursor-pointer transition-colors"
+                            onClick={async () => {
+                              if (!currentWorkspace || !confirm(`Remove ${m.user.name} from workspace?`)) return;
+                              try {
+                                const { default: api } = await import('../api/client');
+                                await api.delete(`/workspaces/${currentWorkspace.id}/members/${m.id}`);
+                                setMembersData(prev => prev.filter(x => x.id !== m.id));
+                              } catch (err: any) {
+                                alert(err.response?.data?.error || 'Failed to remove member');
+                              }
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

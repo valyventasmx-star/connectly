@@ -47,6 +47,10 @@ model Workspace {
   brandingName         String?
   brandingLogo         String?
   brandingColor        String?
+  // Integrations
+  hubspotApiKey        String?
+  hubspotPortalId      String?
+  hubspotLastSync      DateTime?
   // Usage tracking
   messageCount         Int       @default(0)
   contactCount         Int       @default(0)
@@ -110,7 +114,8 @@ model BroadcastRecipient {
 
 model WorkspaceMember {
   id          String   @id @default(cuid())
-  role        String   @default("agent")
+  role        String   @default("agent") // admin | supervisor | agent | viewer
+  permissions String?  // JSON array of extra permission strings
   userId      String
   workspaceId String
   createdAt   DateTime @default(now())
@@ -124,7 +129,7 @@ model WorkspaceMember {
 model Channel {
   id                 String   @id @default(cuid())
   name               String
-  type               String   @default("whatsapp") // whatsapp | instagram | messenger | telegram | email | widget
+  type               String   @default("whatsapp") // whatsapp | instagram | messenger | telegram | email | widget | sms
   phoneNumber        String?
   phoneNumberId      String?
   wabaId             String?
@@ -137,6 +142,10 @@ model Channel {
   // Telegram fields
   telegramBotToken   String?
   telegramBotUsername String?
+  // Twilio SMS fields
+  twilioAccountSid   String?
+  twilioAuthToken    String?
+  twilioFromNumber   String?
   // Email channel fields
   emailConfig        String?  // JSON: {smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom, imapHost, imapPort, imapUser, imapPass}
   emailAddress       String?

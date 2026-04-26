@@ -29,6 +29,8 @@ const EMPTY_FORM = {
   pageId: '', pageAccessToken: '', instagramAccountId: '',
   // Telegram
   telegramBotToken: '',
+  // Twilio SMS
+  twilioAccountSid: '', twilioAuthToken: '', twilioFromNumber: '',
   // Email fields
   emailAddress: '', smtpHost: '', smtpPort: '587', smtpUser: '', smtpPass: '', smtpSecure: 'false',
 };
@@ -38,6 +40,7 @@ const CHANNEL_TYPES = [
   { value: 'instagram', label: 'Instagram DM', emoji: '📸' },
   { value: 'messenger', label: 'Facebook Messenger', emoji: '💙' },
   { value: 'telegram', label: 'Telegram Bot', emoji: '✈️' },
+  { value: 'sms', label: 'SMS via Twilio', emoji: '📱' },
   { value: 'email', label: 'Email', emoji: '📧' },
 ];
 
@@ -88,6 +91,9 @@ export default function Channels() {
       pageId: (ch as any).pageId || '', pageAccessToken: (ch as any).pageAccessToken || '',
       instagramAccountId: (ch as any).instagramAccountId || '',
       telegramBotToken: (ch as any).telegramBotToken || '',
+      twilioAccountSid: (ch as any).twilioAccountSid || '',
+      twilioAuthToken: (ch as any).twilioAuthToken || '',
+      twilioFromNumber: (ch as any).twilioFromNumber || '',
       emailAddress: ch.emailAddress || '',
       smtpHost: emailConfig.host || '', smtpPort: String(emailConfig.port || '587'),
       smtpUser: emailConfig.user || '', smtpPass: emailConfig.pass || '',
@@ -123,6 +129,13 @@ export default function Channels() {
       } else if (form.type === 'telegram') {
         Object.assign(payload, {
           telegramBotToken: form.telegramBotToken,
+        });
+      } else if (form.type === 'sms') {
+        Object.assign(payload, {
+          twilioAccountSid: form.twilioAccountSid,
+          twilioAuthToken: form.twilioAuthToken,
+          twilioFromNumber: form.twilioFromNumber,
+          phoneNumber: form.twilioFromNumber,
         });
       }
       if (editing) {
@@ -467,6 +480,22 @@ export default function Channels() {
                 <p><strong>Step 4:</strong> Save this channel — Connectly will automatically register the webhook with Telegram</p>
               </div>
               <Input label="Bot Token" placeholder="1234567890:ABCDefgh_xxxxxxxx" value={form.telegramBotToken} onChange={f('telegramBotToken')} type="password" />
+            </>
+          )}
+
+          {/* SMS via Twilio */}
+          {form.type === 'sms' && (
+            <>
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3 text-xs text-indigo-700 space-y-1">
+                <p><strong>Step 1:</strong> Sign up at <code className="bg-indigo-100 px-1 rounded">twilio.com</code> and buy an SMS-capable phone number</p>
+                <p><strong>Step 2:</strong> Go to Console → Account → API Keys to get your Account SID and Auth Token</p>
+                <p><strong>Step 3:</strong> After saving, go to Phone Numbers → Configure and set the Webhook URL to:</p>
+                <code className="bg-indigo-100 px-1 rounded block mt-1 break-all">https://your-backend.com/api/webhooks/sms/CHANNEL_ID</code>
+                <p className="mt-1">Set "A message comes in" to HTTP POST with the URL above.</p>
+              </div>
+              <Input label="Account SID" placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" value={form.twilioAccountSid} onChange={f('twilioAccountSid')} />
+              <Input label="Auth Token" placeholder="your_auth_token" value={form.twilioAuthToken} onChange={f('twilioAuthToken')} type="password" />
+              <Input label="Twilio Phone Number" placeholder="+15551234567" value={form.twilioFromNumber} onChange={f('twilioFromNumber')} />
             </>
           )}
 

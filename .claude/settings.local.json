@@ -19,7 +19,12 @@
       "Bash(git push *)",
       "Bash(DATABASE_URL=\"postgresql://postgres:MkvMHdSLSIxqLJLVCFTOJIbuCaGjjOrl@switchback.proxy.rlwy.net:44983/railway\" npx prisma db push)",
       "Bash(DATABASE_URL=\"postgresql://postgres:MkvMHdSLSIxqLJLVCFTOJIbuCaGjjOrl@switchback.proxy.rlwy.net:44983/railway\" npx prisma db push --accept-data-loss)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:MkvMHdSLSIxqLJLVCFTOJIbuCaGjjOrl@switchback.proxy.rlwy.net:44983/railway\" npx prisma db execute --stdin)",
+      "Bash(npm install *)",
+      "Bash(npx prisma *)",
+      "Bash(node -e ' *)",
+      "Bash(npm run *)"
     ]
   }
 }
