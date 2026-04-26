@@ -15,12 +15,14 @@ interface Props {
 
 const QUICK_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-const STATUS_ICONS: Record<string, string> = {
-  sent: '✓',
-  delivered: '✓✓',
-  read: '✓✓',
-  failed: '✗',
-  pending: '⏳',
+// Rendered separately for 'sending' (spinner) and 'failed' (red x)
+const STATUS_TEXT: Record<string, { icon: string; color: string }> = {
+  sending:   { icon: '',    color: 'opacity-50' },   // replaced by spinner below
+  sent:      { icon: '✓',   color: 'opacity-60' },
+  delivered: { icon: '✓✓',  color: 'opacity-60' },
+  read:      { icon: '✓✓',  color: 'text-blue-300' },
+  failed:    { icon: '✗',   color: 'text-red-400' },
+  pending:   { icon: '⏳',  color: 'opacity-50' },
 };
 
 export default function MessageBubble({ message, showDate, conversationId, onReactionUpdate }: Props) {
@@ -98,6 +100,9 @@ export default function MessageBubble({ message, showDate, conversationId, onRea
     );
   }
 
+  const isSending = message.status === 'sending';
+  const isFailed  = message.status === 'failed';
+
   return (
     <div className={`flex flex-col ${isOut ? 'items-end' : 'items-start'} mb-1`}>
       {showDate && (
@@ -106,7 +111,7 @@ export default function MessageBubble({ message, showDate, conversationId, onRea
         </div>
       )}
       <div className={`group relative flex items-end gap-2 max-w-[75%] ${isOut ? 'flex-row-reverse' : 'flex-row'}`}>
-        <div className={isOut ? 'message-bubble-out' : 'message-bubble-in'}>
+        <div className={`${isOut ? 'message-bubble-out' : 'message-bubble-in'} ${isFailed ? 'opacity-70 ring-2 ring-red-400/40' : ''} ${isSending ? 'opacity-60' : ''}`}>
           {!isOut && message.senderName && (
             <p className="text-xs font-semibold text-primary-600 mb-0.5">{message.senderName}</p>
           )}
@@ -121,11 +126,17 @@ export default function MessageBubble({ message, showDate, conversationId, onRea
             <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{message.content}</p>
           )}
           <div className={`flex items-center gap-1 mt-1 ${isOut ? 'justify-end' : 'justify-start'}`}>
-            <span className="text-[10px] opacity-70">{time}</span>
+            <span className="text-[10px] opacity-70">{isSending ? '' : time}</span>
             {isOut && (
-              <span className={`text-[10px] ${message.status === 'read' ? 'text-blue-300' : 'opacity-70'}`}>
-                {STATUS_ICONS[message.status] || '✓'}
-              </span>
+              isSending ? (
+                <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin opacity-50" />
+              ) : isFailed ? (
+                <span className="text-[10px] text-red-400 font-medium">✗ Failed</span>
+              ) : (
+                <span className={`text-[10px] ${STATUS_TEXT[message.status]?.color || 'opacity-60'}`}>
+                  {STATUS_TEXT[message.status]?.icon || '✓'}
+                </span>
+              )
             )}
           </div>
         </div>

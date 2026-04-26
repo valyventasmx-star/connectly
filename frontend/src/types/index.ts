@@ -75,7 +75,7 @@ export interface Message {
   content: string;
   type: string;
   direction: 'inbound' | 'outbound';
-  status: 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
+  status: 'sending' | 'sent' | 'delivered' | 'read' | 'failed' | 'pending';
   waMessageId?: string;
   mediaUrl?: string;
   mediaType?: string;

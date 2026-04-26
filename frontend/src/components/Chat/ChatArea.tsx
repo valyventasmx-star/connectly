@@ -148,9 +148,44 @@ export default function ChatArea({ conversation }: Props) {
     clearTimeout(typingDebounceRef.current);
     isTypingRef.current = false;
     emitTyping(false);
-    const { data } = await messagesApi.send(currentWorkspace.id, conversation.id, content, undefined, isNote, media);
-    setMessages((prev) => [...prev, data]);
+
+    // 1. Optimistic message — visible instantly, before the API round-trip
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const mediaType = media?.type || '';
+    const optimistic: Message = {
+      id: tempId,
+      content: content || (media?.name ?? 'File'),
+      type: media
+        ? (mediaType.startsWith('image/') ? 'image'
+          : mediaType.startsWith('audio/') ? 'audio'
+          : mediaType.startsWith('video/') ? 'video'
+          : 'document')
+        : 'text',
+      direction: 'outbound',
+      status: 'sending',
+      isNote,
+      conversationId: conversation.id,
+      createdAt: new Date().toISOString(),
+      reactions: [],
+      ...(media ? { mediaUrl: media.url, mediaType: media.type } : {}),
+    };
+    setMessages(prev => [...prev, optimistic]);
     scrollToBottom();
+
+    try {
+      const { data } = await messagesApi.send(currentWorkspace.id, conversation.id, content, undefined, isNote, media);
+      // Replace optimistic temp (or just remove it if socket already added the real message)
+      setMessages(prev => {
+        const realAlreadyAdded = prev.some(m => m.id === data.id);
+        if (realAlreadyAdded) return prev.filter(m => m.id !== tempId);
+        return prev.map(m => m.id === tempId ? data : m);
+      });
+      scrollToBottom();
+    } catch (err: any) {
+      console.error('[ChatArea] send error:', err?.response?.data || err);
+      // Mark optimistic message as failed
+      setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: 'failed' as const } : m));
+    }
   };
 
   const handleReactionUpdate = (messageId: string, reactions: any[]) => {
