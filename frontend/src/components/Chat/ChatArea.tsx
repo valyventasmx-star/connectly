@@ -42,9 +42,8 @@ export default function ChatArea({ conversation }: Props) {
 
   useKeyboardShortcuts();
 
+  // Join / leave socket room (only depends on conversation)
   useEffect(() => {
-    loadMessages();
-    // Join conversation room for typing indicators
     const socket = getSocket();
     socket?.emit('join_conversation', conversation.id);
     return () => {
@@ -52,9 +51,18 @@ export default function ChatArea({ conversation }: Props) {
     };
   }, [conversation.id]);
 
+  // Load messages when conversation changes OR workspace becomes available for the first time
+  useEffect(() => {
+    if (!currentWorkspace) return;
+    loadMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversation.id, currentWorkspace?.id]);
+
   useEffect(() => {
     const handleNewMessage = (e: any) => {
       const msg = e.detail as Message;
+      // Guard: detail may be null/undefined if socket emits an unexpected shape
+      if (!msg || msg.conversationId !== conversation.id) return;
       if (msg.conversationId === conversation.id) {
         setMessages((prev) => {
           if (prev.find((m) => m.id === msg.id)) return prev;
@@ -93,14 +101,20 @@ export default function ChatArea({ conversation }: Props) {
   }, [conversation.id]);
 
   const loadMessages = async () => {
-    if (!currentWorkspace) return;
+    if (!currentWorkspace) {
+      console.warn('[ChatArea] loadMessages: currentWorkspace is null — skipping fetch');
+      return;
+    }
     setLoading(true);
     try {
+      console.log(`[ChatArea] fetching messages: workspaceId=${currentWorkspace.id} conversationId=${conversation.id}`);
       const { data } = await messagesApi.list(currentWorkspace.id, conversation.id, { limit: 100 });
-      setMessages(data.messages);
+      const msgs: Message[] = Array.isArray(data?.messages) ? data.messages : [];
+      console.log(`[ChatArea] fetched ${msgs.length} messages`, msgs);
+      setMessages(msgs);
       scrollToBottom(true);
-    } catch (err) {
-      console.error(err);
+    } catch (err: any) {
+      console.error('[ChatArea] loadMessages error:', err?.response?.data || err);
     } finally {
       setLoading(false);
     }
@@ -161,7 +175,7 @@ export default function ChatArea({ conversation }: Props) {
       setMergeConvId('');
       // Reload messages after merge
       const { data } = await messagesApi.list(currentWorkspace.id, conversation.id);
-      setMessages(data);
+      setMessages(Array.isArray(data?.messages) ? data.messages : []);
       alert('✅ Conversations merged successfully');
     } catch (err: any) {
       alert(err.response?.data?.error || 'Merge failed');
@@ -240,8 +254,10 @@ export default function ChatArea({ conversation }: Props) {
 
   const shouldShowDate = (idx: number) => {
     if (idx === 0) return true;
-    const prev = new Date(messages[idx - 1].createdAt);
-    const curr = new Date(messages[idx].createdAt);
+    const msgList = Array.isArray(messages) ? messages : [];
+    if (idx >= msgList.length) return false;
+    const prev = new Date(msgList[idx - 1]?.createdAt);
+    const curr = new Date(msgList[idx]?.createdAt);
     return prev.toDateString() !== curr.toDateString();
   };
 
@@ -422,13 +438,15 @@ export default function ChatArea({ conversation }: Props) {
             <div className="flex items-center justify-center h-full">
               <div className="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full" />
             </div>
-          ) : messages.length === 0 ? (
-            <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-              No messages yet. Start the conversation!
+          ) : !Array.isArray(messages) || messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2">
+              <span className="text-3xl">💬</span>
+              <p className="text-gray-500 text-sm font-medium">No messages yet</p>
+              <p className="text-gray-400 text-xs">Start the conversation using the input below.</p>
             </div>
           ) : (
             <>
-              {messages.map((msg, idx) => (
+              {(messages as Message[]).map((msg, idx) => (
                 <MessageBubble
                   key={msg.id}
                   message={msg}

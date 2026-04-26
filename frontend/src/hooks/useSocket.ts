@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore } from '../store/auth';
 import { useWorkspaceStore } from '../store/workspace';
-import { Message, Conversation } from '../types';
+import { Message } from '../types';
 
 let socketInstance: Socket | null = null;
 
@@ -85,33 +85,56 @@ export function useSocket() {
     if (!socketInstance || !currentWorkspace) return;
     socketInstance.emit('join_workspace', currentWorkspace.id);
 
-    const handleNewMessage = (data: { conversationId: string; message: Message; conversation?: Partial<Conversation> }) => {
+    const handleNewMessage = (data: any) => {
       const state = useWorkspaceStore.getState();
 
+      // Bridge sends message fields flat at top level ({ id, conversationId, content, … }).
+      // Regular backend wraps them under data.message. Normalise to one Message object.
+      const msg: Message = data.message ?? {
+        id: data.id,
+        conversationId: data.conversationId,
+        content: data.content ?? '',
+        direction: data.direction ?? 'inbound',
+        type: data.type ?? 'text',
+        status: data.status ?? 'delivered',
+        isNote: data.isNote ?? false,
+        isAiReply: data.isAiReply ?? false,
+        senderName: data.senderName ?? null,
+        mediaUrl: data.mediaUrl ?? null,
+        mediaType: data.mediaType ?? null,
+        createdAt: data.createdAt
+          ? (typeof data.createdAt === 'string' ? data.createdAt : new Date(data.createdAt).toISOString())
+          : new Date().toISOString(),
+        reactions: [],
+      };
+
+      if (!msg?.conversationId) return;
+
       state.updateConversation({
-        id: data.conversationId,
-        lastMessageAt: data.message.createdAt,
-        messages: [data.message],
+        id: msg.conversationId,
+        lastMessageAt: msg.createdAt,
         ...(data.conversation || {}),
       });
 
-      if (state.activeConversation?.id === data.conversationId) {
-        window.dispatchEvent(new CustomEvent('new_message', { detail: data.message }));
+      if (state.activeConversation?.id === msg.conversationId) {
+        window.dispatchEvent(new CustomEvent('new_message', { detail: msg }));
       }
 
       // Browser notification + sound for inbound messages
-      if (data.message.direction === 'inbound' && !data.message.isNote) {
-        const conv = state.conversations.find(c => c.id === data.conversationId);
+      if (msg.direction === 'inbound' && !msg.isNote) {
+        const conv = state.conversations.find(c => c.id === msg.conversationId);
         const contactName = conv?.contact?.name || 'New message';
-        showBrowserNotification(contactName, data.message.content);
-        // Sound alert (only if not in the active conversation)
-        if (state.activeConversation?.id !== data.conversationId) {
+        showBrowserNotification(contactName, msg.content);
+        if (state.activeConversation?.id !== msg.conversationId) {
           playNotificationSound();
         }
       }
     };
 
-    const handleConversationUpdated = ({ conversationId }: { conversationId: string }) => {
+    const handleConversationUpdated = (data: any) => {
+      // Bridge emits convPayload with { id, … }; regular backend emits { conversationId }
+      const conversationId = data?.conversationId ?? data?.id;
+      if (!conversationId) return;
       window.dispatchEvent(new CustomEvent('conversation_updated', { detail: { conversationId } }));
     };
 
