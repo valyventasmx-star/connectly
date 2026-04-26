@@ -59,7 +59,9 @@ export function useSocket() {
 
     requestNotificationPermission();
 
-    socketInstance = io('/', {
+    // On Vercel VITE_API_URL points to Railway; on localhost '/' proxies to :3001
+    const socketUrl = import.meta.env.VITE_API_URL || '/';
+    socketInstance = io(socketUrl, {
       auth: { token },
       transports: ['websocket', 'polling'],
     });
