@@ -11,6 +11,16 @@ router.get('/analytics', async (req: AuthRequest, res: Response) => {
   const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
   const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
+  // Build 7 day windows upfront
+  const dayWindows = Array.from({ length: 7 }, (_, i) => {
+    const base = new Date();
+    base.setDate(base.getDate() - (6 - i));
+    const start = new Date(base); start.setHours(0, 0, 0, 0);
+    const end = new Date(base);   end.setHours(23, 59, 59, 999);
+    return { date: start.toISOString().split('T')[0], start, end };
+  });
+
+  // All queries in a single Promise.all — no sequential loops
   const [
     totalConversations,
     openConversations,
@@ -23,6 +33,7 @@ router.get('/analytics', async (req: AuthRequest, res: Response) => {
     inboundMessages,
     outboundMessages,
     aiMessages,
+    ...dailyCounts
   ] = await Promise.all([
     prisma.conversation.count({ where: { workspaceId } }),
     prisma.conversation.count({ where: { workspaceId, status: 'open' } }),
@@ -35,45 +46,23 @@ router.get('/analytics', async (req: AuthRequest, res: Response) => {
     prisma.message.count({ where: { conversation: { workspaceId }, direction: 'inbound' } }),
     prisma.message.count({ where: { conversation: { workspaceId }, direction: 'outbound' } }),
     prisma.message.count({ where: { conversation: { workspaceId }, isAiReply: true } }),
+    // 7 daily message counts — all parallel
+    ...dayWindows.map(w =>
+      prisma.message.count({
+        where: { conversation: { workspaceId }, createdAt: { gte: w.start, lte: w.end } },
+      })
+    ),
   ]);
 
-  // Daily message counts for the last 7 days
-  const dailyMessages = [];
-  for (let i = 6; i >= 0; i--) {
-    const date = new Date(now);
-    date.setDate(date.getDate() - i);
-    const startOfDay = new Date(date.setHours(0, 0, 0, 0));
-    const endOfDay = new Date(date.setHours(23, 59, 59, 999));
-
-    const count = await prisma.message.count({
-      where: {
-        conversation: { workspaceId },
-        createdAt: { gte: startOfDay, lte: endOfDay },
-      },
-    });
-
-    dailyMessages.push({
-      date: startOfDay.toISOString().split('T')[0],
-      count,
-    });
-  }
+  const dailyMessages = dayWindows.map((w, i) => ({ date: w.date, count: dailyCounts[i] as number }));
 
   res.json({
     overview: {
-      totalConversations,
-      openConversations,
-      resolvedConversations,
-      totalContacts,
-      totalMessages,
-      newContactsThisMonth,
-      conversationsThisWeek,
-      messagesThisMonth,
+      totalConversations, openConversations, resolvedConversations,
+      totalContacts, totalMessages, newContactsThisMonth,
+      conversationsThisWeek, messagesThisMonth,
     },
-    messages: {
-      inbound: inboundMessages,
-      outbound: outboundMessages,
-      aiReplies: aiMessages,
-    },
+    messages: { inbound: inboundMessages, outbound: outboundMessages, aiReplies: aiMessages },
     dailyMessages,
     resolutionRate: totalConversations > 0
       ? Math.round((resolvedConversations / totalConversations) * 100)
@@ -81,60 +70,52 @@ router.get('/analytics', async (req: AuthRequest, res: Response) => {
   });
 });
 
-// GET /analytics/heatmap — message volume by hour (0-23) × weekday (0-6, Sun=0)
+// GET /analytics/heatmap — uses a capped findMany with select: { createdAt } only
 router.get('/analytics/heatmap', async (req: AuthRequest, res: Response) => {
   const workspaceId = req.params.workspaceId;
-  const days = parseInt(req.query.days as string || '30');
+  const days = Math.min(parseInt(req.query.days as string || '30'), 60);
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
   const messages = await prisma.message.findMany({
-    where: {
-      conversation: { workspaceId },
-      createdAt: { gte: since },
-      direction: 'inbound',
-      isNote: false,
-    },
+    where: { conversation: { workspaceId }, createdAt: { gte: since }, direction: 'inbound', isNote: false },
     select: { createdAt: true },
+    take: 5000, // cap to avoid huge payloads
   });
 
-  // Build hour × weekday matrix (7 days × 24 hours)
   const matrix: number[][] = Array.from({ length: 7 }, () => new Array(24).fill(0));
   for (const msg of messages) {
     const d = new Date(msg.createdAt);
-    const hour = d.getHours();
-    const day = d.getDay(); // 0 = Sunday
-    matrix[day][hour]++;
+    matrix[d.getDay()][d.getHours()]++;
   }
 
-  // Flatten to array for frontend
-  const cells: { day: number; hour: number; count: number }[] = [];
-  for (let day = 0; day < 7; day++) {
-    for (let hour = 0; hour < 24; hour++) {
+  const cells = [];
+  for (let day = 0; day < 7; day++)
+    for (let hour = 0; hour < 24; hour++)
       cells.push({ day, hour, count: matrix[day][hour] });
-    }
-  }
 
   res.json({ cells, total: messages.length, days });
 });
 
-// GET /analytics/by-channel — message counts per channel
+// GET /analytics/by-channel
 router.get('/analytics/by-channel', async (req: AuthRequest, res: Response) => {
   const workspaceId = req.params.workspaceId;
   const channels = await prisma.channel.findMany({ where: { workspaceId } });
 
-  const result = await Promise.all(channels.map(async ch => {
-    const [total, inbound, outbound] = await Promise.all([
-      prisma.message.count({ where: { conversation: { channelId: ch.id } } }),
-      prisma.message.count({ where: { conversation: { channelId: ch.id }, direction: 'inbound' } }),
-      prisma.message.count({ where: { conversation: { channelId: ch.id }, direction: 'outbound' } }),
-    ]);
-    return { channelId: ch.id, name: ch.name, type: ch.type, total, inbound, outbound };
-  }));
+  const result = await Promise.all(
+    channels.map(async ch => {
+      const [total, inbound, outbound] = await Promise.all([
+        prisma.message.count({ where: { conversation: { channelId: ch.id } } }),
+        prisma.message.count({ where: { conversation: { channelId: ch.id }, direction: 'inbound' } }),
+        prisma.message.count({ where: { conversation: { channelId: ch.id }, direction: 'outbound' } }),
+      ]);
+      return { channelId: ch.id, name: ch.name, type: ch.type, total, inbound, outbound };
+    })
+  );
 
   res.json(result);
 });
 
-// GET /analytics/by-language — contacts grouped by detected language
+// GET /analytics/by-language
 router.get('/analytics/by-language', async (req: AuthRequest, res: Response) => {
   const workspaceId = req.params.workspaceId;
   const contacts = await prisma.contact.groupBy({

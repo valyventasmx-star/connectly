@@ -127,19 +127,21 @@ export default function Analytics() {
   useEffect(() => {
     if (!currentWorkspace) return;
     setLoading(true);
+    // All requests fire in parallel; each has its own .catch so one failure
+    // never blocks the others from rendering
     Promise.all([
-      api.get(`/workspaces/${currentWorkspace.id}/analytics`),
-      api.get(`/workspaces/${currentWorkspace.id}/analytics/heatmap`),
-      api.get(`/workspaces/${currentWorkspace.id}/analytics/by-channel`),
-      api.get(`/workspaces/${currentWorkspace.id}/analytics/by-language`),
+      api.get(`/workspaces/${currentWorkspace.id}/analytics`).catch(() => ({ data: null })),
+      api.get(`/workspaces/${currentWorkspace.id}/analytics/heatmap`).catch(() => ({ data: null })),
+      api.get(`/workspaces/${currentWorkspace.id}/analytics/by-channel`).catch(() => ({ data: [] })),
+      api.get(`/workspaces/${currentWorkspace.id}/analytics/by-language`).catch(() => ({ data: [] })),
       csatApi.get(currentWorkspace.id).catch(() => ({ data: null })),
     ]).then(([a, h, c, l, cs]) => {
-      setData(a.data);
-      setHeatmap(h.data);
-      setByChannel(c.data);
-      setByLanguage(l.data);
+      if (a.data) setData(a.data);
+      if (h.data) setHeatmap(h.data);
+      if (Array.isArray(c.data)) setByChannel(c.data);
+      if (Array.isArray(l.data)) setByLanguage(l.data);
       if (cs.data) setCsat(cs.data);
-    }).catch(console.error).finally(() => setLoading(false));
+    }).finally(() => setLoading(false));
   }, [currentWorkspace]);
 
   const maxDaily = data ? Math.max(...data.dailyMessages.map(d => d.count), 1) : 1;

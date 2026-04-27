@@ -26,9 +26,9 @@ export default function Dashboard() {
     setLoading(true);
     dashboardApi.get(currentWorkspace.id)
       .then(r => setData(r.data))
-      .catch(console.error)
+      .catch(err => console.error('Dashboard load failed:', err))
       .finally(() => setLoading(false));
-  }, [currentWorkspace]);
+  }, [currentWorkspace?.id]);
 
   const { stats = {}, daily = [], recentConversations = [] } = data || {};
   const maxDaily = Math.max(...daily.map((d: any) => d.count), 1);
