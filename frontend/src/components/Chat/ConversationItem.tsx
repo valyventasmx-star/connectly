@@ -15,7 +15,8 @@ const POS_WORDS = [
   'brilliant','gracias','perfecto','😊','😃','❤️','👍','🙏',
 ];
 
-function getSentiment(text: string): 'negative' | 'positive' | 'neutral' {
+function getSentiment(text: string | null | undefined): 'negative' | 'positive' | 'neutral' {
+  if (!text) return 'neutral';
   const lower = text.toLowerCase();
   const exclamations = (text.match(/!/g) || []).length;
   const capsRatio = (text.match(/[A-Z]/g) || []).length / Math.max(text.length, 1);
@@ -28,7 +29,8 @@ function getSentiment(text: string): 'negative' | 'positive' | 'neutral' {
   return 'neutral';
 }
 
-function SentimentBadge({ text }: { text: string }) {
+function SentimentBadge({ text }: { text: string | null | undefined }) {
+  if (!text) return null;
   const s = getSentiment(text);
   if (s === 'neutral') return null;
   return (
@@ -153,7 +155,7 @@ export default function ConversationItem({ conversation, active, onClick, triage
                 {lastMsg.direction === 'outbound' && (
                   <span className="text-primary-500 font-medium mr-1">You: </span>
                 )}
-                {lastMsg.content}
+                {lastMsg.content || '📎 Attachment'}
               </>
             ) : (
               <span className="text-gray-400 italic">No messages yet</span>

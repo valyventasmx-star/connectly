@@ -101,6 +101,51 @@ router.post('/import', async (req: AuthRequest, res: Response) => {
   res.json({ created, skipped, total: rows.length });
 });
 
+// ── Find duplicate contacts — MUST be before /:contactId ─────────────────────
+router.get('/duplicates', async (req: AuthRequest, res: Response) => {
+  const contacts = await prisma.contact.findMany({
+    where: { workspaceId: req.params.workspaceId },
+    select: { id: true, name: true, phone: true, email: true, createdAt: true },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  const groups: Array<{ matchKey: string; contacts: typeof contacts }> = [];
+  const seen = new Set<string>();
+
+  const byPhone = new Map<string, typeof contacts>();
+  for (const c of contacts) {
+    if (!c.phone) continue;
+    const key = c.phone.replace(/\D/g, '').slice(-10);
+    if (!key || key.length < 7) continue;
+    if (!byPhone.has(key)) byPhone.set(key, []);
+    byPhone.get(key)!.push(c);
+  }
+  for (const [, group] of byPhone.entries()) {
+    if (group.length < 2) continue;
+    const ids = group.map(c => c.id).sort().join(',');
+    if (seen.has(ids)) continue;
+    seen.add(ids);
+    groups.push({ matchKey: 'phone', contacts: group });
+  }
+
+  const byEmail = new Map<string, typeof contacts>();
+  for (const c of contacts) {
+    if (!c.email) continue;
+    const key = c.email.toLowerCase().trim();
+    if (!byEmail.has(key)) byEmail.set(key, []);
+    byEmail.get(key)!.push(c);
+  }
+  for (const [, group] of byEmail.entries()) {
+    if (group.length < 2) continue;
+    const ids = group.map(c => c.id).sort().join(',');
+    if (seen.has(ids)) continue;
+    seen.add(ids);
+    groups.push({ matchKey: 'email', contacts: group });
+  }
+
+  res.json({ groups, totalDuplicates: groups.reduce((s, g) => s + g.contacts.length - 1, 0) });
+});
+
 // Get contact
 router.get('/:contactId', async (req: AuthRequest, res: Response) => {
   const contact = await prisma.contact.findFirst({
@@ -182,51 +227,6 @@ router.post('/merge', async (req: AuthRequest, res: Response) => {
     console.error(err);
     res.status(500).json({ error: 'Merge failed' });
   }
-});
-
-// ── Find duplicate contacts ───────────────────────────────────────────────────
-router.get('/duplicates', async (req: AuthRequest, res: Response) => {
-  const contacts = await prisma.contact.findMany({
-    where: { workspaceId: req.params.workspaceId },
-    select: { id: true, name: true, phone: true, email: true, createdAt: true },
-    orderBy: { createdAt: 'asc' },
-  });
-
-  const groups: Array<{ field: string; value: string; contacts: typeof contacts }> = [];
-  const seen = new Set<string>();
-
-  const byPhone = new Map<string, typeof contacts>();
-  for (const c of contacts) {
-    if (!c.phone) continue;
-    const key = c.phone.replace(/\D/g, '').slice(-10);
-    if (!key || key.length < 7) continue;
-    if (!byPhone.has(key)) byPhone.set(key, []);
-    byPhone.get(key)!.push(c);
-  }
-  for (const [phone, group] of byPhone.entries()) {
-    if (group.length < 2) continue;
-    const ids = group.map(c => c.id).sort().join(',');
-    if (seen.has(ids)) continue;
-    seen.add(ids);
-    groups.push({ field: 'phone', value: phone, contacts: group });
-  }
-
-  const byEmail = new Map<string, typeof contacts>();
-  for (const c of contacts) {
-    if (!c.email) continue;
-    const key = c.email.toLowerCase().trim();
-    if (!byEmail.has(key)) byEmail.set(key, []);
-    byEmail.get(key)!.push(c);
-  }
-  for (const [email, group] of byEmail.entries()) {
-    if (group.length < 2) continue;
-    const ids = group.map(c => c.id).sort().join(',');
-    if (seen.has(ids)) continue;
-    seen.add(ids);
-    groups.push({ field: 'email', value: email, contacts: group });
-  }
-
-  res.json({ groups, totalDuplicates: groups.reduce((s, g) => s + g.contacts.length - 1, 0) });
 });
 
 export default router;
