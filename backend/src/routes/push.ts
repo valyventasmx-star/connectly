@@ -22,16 +22,18 @@ router.get('/vapid-key', (_req: AuthRequest, res: Response) => {
 
 // Save a new push subscription for this workspace member
 router.post('/subscribe', async (req: AuthRequest, res: Response) => {
-  const { subscription } = req.body as { subscription?: PushSubscriptionJSON };
-  if (!subscription?.endpoint || !subscription.keys) {
+  const { subscription } = req.body as {
+    subscription?: { endpoint: string; keys?: { p256dh?: string; auth?: string } };
+  };
+  if (!subscription?.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
     return res.status(400).json({ error: 'Invalid push subscription object' });
   }
 
   addSubscription(req.params.workspaceId, {
     endpoint: subscription.endpoint,
     keys: {
-      p256dh: (subscription.keys as any).p256dh,
-      auth:   (subscription.keys as any).auth,
+      p256dh: subscription.keys.p256dh,
+      auth:   subscription.keys.auth,
     },
   });
 
