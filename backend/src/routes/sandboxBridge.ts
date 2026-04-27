@@ -31,6 +31,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { getIO } from '../services/socket';
+import { notifyWorkspace } from '../services/pushNotifications';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -581,6 +582,15 @@ router.post('/ingest', async (req: Request, res: Response) => {
     });
 
     io.to(room).emit('conversation_updated', convPayload);
+
+    // Push notification to agents who installed the PWA on their phone
+    if (!inboundWasDuplicate) {
+      notifyWorkspace(workspace.id, {
+        title: `New message from ${contact.name}`,
+        body: safeMediaUrl ? '📎 Image received' : safeUserText.slice(0, 80),
+        url: '/inbox',
+      }).catch(() => {});
+    }
   } catch (socketErr) {
     // Socket initialises after the first HTTP connection — non-fatal at startup
     console.warn(`${LOG} SOCKET_WARN (non-fatal):`, (socketErr as Error).message);

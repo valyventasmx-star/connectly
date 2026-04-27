@@ -5,6 +5,7 @@ import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
 import { authApi, workspacesApi, onboardingApi } from '../../api/client';
 import { useSocket } from '../../hooks/useSocket';
+import { usePushNotifications } from '../../hooks/usePushNotifications';
 import SearchModal from '../Search/SearchModal';
 import OnboardingWizard from '../Onboarding/OnboardingWizard';
 
@@ -19,6 +20,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [onboardingChecked, setOnboardingChecked] = useState(false);
   useSocket();
+  usePushNotifications(currentWorkspace?.id);
 
   useEffect(() => {
     if (!isAuthenticated) {

@@ -57,6 +57,8 @@ import instagramWebhookRoutes from './routes/instagramWebhook';
 import telegramWebhookRoutes from './routes/telegramWebhook';
 import smsWebhookRoutes from './routes/smsWebhook';
 import sandboxBridgeRoutes from './routes/sandboxBridge';
+import invitationRoutes from './routes/invitations';
+import pushRoutes from './routes/push';
 import aiTrainingRoutes from './routes/aiTraining';
 import leaderboardRoutes from './routes/leaderboard';
 import rolesRoutes from './routes/roles';
@@ -144,6 +146,8 @@ app.use('/api/workspaces/:workspaceId/hubspot', hubspotRoutes);
 app.use('/api/webhooks/sms', express.urlencoded({ extended: false }), smsWebhookRoutes);
 // Server-to-server bridge: WhatsApp bot → Connectly DB persistence
 app.use('/api/sandbox', sandboxBridgeRoutes);
+app.use('/api', invitationRoutes); // /api/invitations/:token and /api/workspaces/:id/invitations/send
+app.use('/api/workspaces/:workspaceId/push', pushRoutes);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok', timestamp: new Date() }));
 

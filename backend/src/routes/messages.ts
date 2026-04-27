@@ -4,6 +4,7 @@ import { authenticate, requireWorkspace, AuthRequest } from '../middleware/auth'
 import { sendWhatsAppMessage } from '../services/whatsapp';
 import { getIO } from '../services/socket';
 import { runAutomations } from '../services/automationEngine';
+import { notifyWorkspace } from '../services/pushNotifications';
 import https from 'https';
 import http from 'http';
 import { URL } from 'url';
@@ -132,6 +133,17 @@ router.post('/:conversationId/messages', async (req: AuthRequest, res: Response)
     conversationId: conv.id,
     message,
   });
+
+  // Push notification for inbound messages (so agents get notified on mobile)
+  if (message.direction === 'inbound') {
+    const contactName = conv.contact?.name ?? 'Customer';
+    const preview = message.content?.slice(0, 80) ?? '📎 Attachment';
+    notifyWorkspace(req.params.workspaceId, {
+      title: `New message from ${contactName}`,
+      body: preview,
+      url: `/inbox`,
+    }).catch(() => {}); // fire-and-forget, never blocks response
+  }
 
   if (!isNote) {
     fireWebhooks(req.params.workspaceId, 'message.sent', { message, conversationId: conv.id });
