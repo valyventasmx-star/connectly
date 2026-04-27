@@ -11,14 +11,14 @@ router.use(authenticate, requireWorkspace());
 router.get('/ai', async (req: AuthRequest, res: Response) => {
   const workspace = await prisma.workspace.findUnique({
     where: { id: req.params.workspaceId },
-    select: { aiEnabled: true, aiPrompt: true, plan: true },
+    select: { aiEnabled: true, aiAutoPilot: true, aiPrompt: true, plan: true },
   });
   res.json(workspace);
 });
 
 // Update AI settings
 router.patch('/ai', async (req: AuthRequest, res: Response) => {
-  const { aiEnabled, aiPrompt } = req.body;
+  const { aiEnabled, aiAutoPilot, aiPrompt } = req.body;
   const workspace = await prisma.workspace.findUnique({ where: { id: req.params.workspaceId } });
 
   if (aiEnabled && workspace?.plan === 'free') {
@@ -27,8 +27,8 @@ router.patch('/ai', async (req: AuthRequest, res: Response) => {
 
   const updated = await prisma.workspace.update({
     where: { id: req.params.workspaceId },
-    data: { aiEnabled, aiPrompt },
-    select: { aiEnabled: true, aiPrompt: true },
+    data: { aiEnabled, aiAutoPilot, aiPrompt },
+    select: { aiEnabled: true, aiAutoPilot: true, aiPrompt: true },
   });
   res.json(updated);
 });
@@ -237,6 +237,29 @@ router.post('/score-quality', async (req: AuthRequest, res: Response) => {
       await prisma.message.updateMany({ where: { id: messageId }, data: { qualityScore } });
     }
     res.json({ qualityScore });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Auto-Translation ─────────────────────────────────────────────────────────
+router.post('/ai/translate', async (req: AuthRequest, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'AI not configured' });
+  const { text, targetLang } = req.body as { text: string; targetLang: string };
+  if (!text || !targetLang) return res.status(400).json({ error: 'text and targetLang required' });
+
+  try {
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1000,
+      messages: [{
+        role: 'user',
+        content: `Translate the following text to ${targetLang}. Return ONLY the translated text, nothing else, no explanations:\n\n${text}`,
+      }],
+    });
+    res.json({ translated: (response.content[0] as any).text.trim() });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

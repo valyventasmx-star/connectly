@@ -25,9 +25,19 @@ interface Props {
   onSend: (content: string, isNote?: boolean, media?: MediaAttachment) => Promise<void>;
   onTyping?: () => void;
   disabled?: boolean;
+  contact?: { name?: string; phone?: string; email?: string; company?: string };
 }
 
-export default function ChatInput({ onSend, onTyping, disabled }: Props) {
+function substituteVars(text: string, contact?: Props['contact']): string {
+  if (!contact) return text;
+  return text
+    .replace(/\{\{contact\.name\}\}/g, contact.name || '')
+    .replace(/\{\{contact\.phone\}\}/g, contact.phone || '')
+    .replace(/\{\{contact\.email\}\}/g, contact.email || '')
+    .replace(/\{\{contact\.company\}\}/g, contact.company || '');
+}
+
+export default function ChatInput({ onSend, onTyping, disabled, contact }: Props) {
   const [content, setContent] = useState('');
   const [sending, setSending] = useState(false);
   const [noteMode, setNoteMode] = useState(false);
@@ -113,7 +123,8 @@ export default function ChatInput({ onSend, onTyping, disabled }: Props) {
   };
 
   const insertResponse = (text: string) => {
-    setContent((prev) => prev ? prev + '\n' + text : text);
+    const resolved = substituteVars(text, contact);
+    setContent((prev) => prev ? prev + '\n' + resolved : resolved);
     setShowQuickReplies(false);
     setTimeout(() => {
       if (textareaRef.current) {

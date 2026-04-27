@@ -116,6 +116,61 @@ router.post('/:channelId', async (req: Request, res: Response) => {
         data: { lastMessageAt: new Date(), unreadCount: { increment: 1 } },
       });
 
+      // ── AI Autopilot: auto-reply if enabled for this workspace ────────────
+      try {
+        const workspace = await prisma.workspace.findUnique({
+          where: { id: channel.workspaceId },
+          select: { aiAutoPilot: true, aiEnabled: true, aiPrompt: true, name: true },
+        });
+        if (workspace?.aiAutoPilot && workspace?.aiEnabled && process.env.ANTHROPIC_API_KEY && text && text !== '[Attachment]') {
+          const recentMessages = await prisma.message.findMany({
+            where: { conversationId: conversation.id },
+            orderBy: { createdAt: 'desc' },
+            take: 10,
+          });
+          const history = recentMessages.reverse().map(m => ({
+            role: m.direction === 'outbound' ? 'assistant' : 'user',
+            content: m.content,
+          }));
+          const Anthropic = (await import('@anthropic-ai/sdk')).default;
+          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+          const aiResponse = await client.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 400,
+            system: workspace.aiPrompt || `You are a helpful customer support assistant for ${workspace.name}. Be friendly, concise, and professional.`,
+            messages: history.length > 0 ? history as any : [{ role: 'user', content: text }],
+          });
+          const aiText = (aiResponse.content[0] as any).text;
+
+          // Try to send reply via page API
+          try {
+            const axios = (await import('axios')).default;
+            const token = channel.pageAccessToken || channel.accessToken;
+            const replyEndpoint = platform === 'instagram'
+              ? `https://graph.facebook.com/v19.0/me/messages`
+              : `https://graph.facebook.com/v19.0/me/messages`;
+            await axios.post(replyEndpoint, {
+              recipient: { id: senderId },
+              message: { text: aiText },
+            }, { params: { access_token: token } });
+          } catch { /* ignore send errors — still save the message */ }
+
+          await prisma.message.create({
+            data: {
+              conversationId: conversation.id,
+              content: aiText,
+              direction: 'outbound',
+              status: 'sent',
+              isAiReply: true,
+              senderName: 'AI Assistant',
+            },
+          });
+          await prisma.conversation.update({ where: { id: conversation.id }, data: { lastMessageAt: new Date() } });
+        }
+      } catch (aiErr) {
+        console.warn('[AI_AUTOPILOT] error:', (aiErr as Error).message);
+      }
+
       const io = getIO();
       io.to(`workspace:${channel.workspaceId}`).emit('new_message', {
         conversationId: conversation.id,

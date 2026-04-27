@@ -96,6 +96,8 @@ interface Props {
   active: boolean;
   onClick: () => void;
   triageInfo?: TriageInfo;
+  selected?: boolean;
+  onSelect?: (id: string, checked: boolean) => void;
 }
 
 const CHANNEL_ICONS: Record<string, string> = {
@@ -107,7 +109,7 @@ const CHANNEL_ICONS: Record<string, string> = {
   telegram: '✈️',
 };
 
-export default function ConversationItem({ conversation, active, onClick, triageInfo }: Props) {
+export default function ConversationItem({ conversation, active, onClick, triageInfo, selected, onSelect }: Props) {
   const lastMsg = conversation.messages?.[0];
   const lastInbound = conversation.messages?.find(m => m.direction === 'inbound');
   const time = conversation.lastMessageAt
@@ -117,10 +119,20 @@ export default function ConversationItem({ conversation, active, onClick, triage
 
   return (
     <div
-      onClick={onClick}
-      className={`conversation-item ${active ? 'active' : ''}`}
+      onClick={onSelect ? undefined : onClick}
+      className={`conversation-item ${active ? 'active' : ''} ${selected ? 'bg-primary-50' : ''}`}
     >
-      <Avatar name={conversation.contact.name} size="md" />
+      {onSelect ? (
+        <input
+          type="checkbox"
+          checked={selected || false}
+          onChange={e => { e.stopPropagation(); onSelect(conversation.id, e.target.checked); }}
+          onClick={e => e.stopPropagation()}
+          className="w-4 h-4 rounded border-gray-300 text-primary-600 flex-shrink-0 cursor-pointer"
+        />
+      ) : (
+        <Avatar name={conversation.contact.name} size="md" />
+      )}
       <div className="flex-1 min-w-0">
         {/* Row 1: name + time + sentiment */}
         <div className="flex items-center justify-between gap-2 mb-0.5">

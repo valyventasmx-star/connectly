@@ -18,7 +18,7 @@ router.get('/', async (req: AuthRequest, res: Response) => {
 
 // Create broadcast
 router.post('/', async (req: AuthRequest, res: Response) => {
-  const { name, message, channelId, scheduledAt } = req.body;
+  const { name, message, channelId, scheduledAt, variantMessage } = req.body;
   if (!name || !message) return res.status(400).json({ error: 'Name and message required' });
 
   const broadcast = await prisma.broadcast.create({
@@ -28,6 +28,7 @@ router.post('/', async (req: AuthRequest, res: Response) => {
       channelId: channelId || null,
       scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
       workspaceId: req.params.workspaceId,
+      variantMessage: variantMessage || null,
     },
   });
   res.json(broadcast);
@@ -68,30 +69,39 @@ router.post('/:broadcastId/send', async (req: AuthRequest, res: Response) => {
 
   let sentCount = 0;
   let failedCount = 0;
+  let variantSentCount = 0;
+  let variantFailedCount = 0;
+
+  // A/B split: if variantMessage exists, send variant to 50% of contacts
+  const hasVariant = !!broadcast.variantMessage;
+  const splitIndex = hasVariant ? Math.ceil(contacts.length / 2) : contacts.length;
 
   // Send messages
-  for (const contact of contacts) {
+  for (let i = 0; i < contacts.length; i++) {
+    const contact = contacts[i];
+    const isVariant = hasVariant && i >= splitIndex;
+    const messageToSend = isVariant ? broadcast.variantMessage! : broadcast.message;
     try {
       if (channel?.accessToken && channel?.phoneNumberId && contact.phone) {
-        await sendWhatsAppMessage(channel.accessToken, channel.phoneNumberId, contact.phone, broadcast.message);
+        await sendWhatsAppMessage(channel.accessToken, channel.phoneNumberId, contact.phone, messageToSend);
       }
       await prisma.broadcastRecipient.updateMany({
         where: { broadcastId, contactId: contact.id },
-        data: { status: 'sent', sentAt: new Date() },
+        data: { status: isVariant ? 'sent_variant' : 'sent', sentAt: new Date() },
       });
-      sentCount++;
+      if (isVariant) variantSentCount++; else sentCount++;
     } catch {
       await prisma.broadcastRecipient.updateMany({
         where: { broadcastId, contactId: contact.id },
         data: { status: 'failed' },
       });
-      failedCount++;
+      if (isVariant) variantFailedCount++; else failedCount++;
     }
   }
 
   const updated = await prisma.broadcast.update({
     where: { id: broadcastId },
-    data: { status: 'completed', sentAt: new Date(), sentCount, failedCount },
+    data: { status: 'completed', sentAt: new Date(), sentCount, failedCount, variantSentCount, variantFailedCount },
   });
 
   res.json(updated);

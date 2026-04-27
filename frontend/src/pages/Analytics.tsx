@@ -2,12 +2,14 @@ import { useState, useEffect } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
 import api from '../api/client';
+import { csatApi } from '../api/client';
 import {
   ChatBubbleLeftRightIcon,
   UserGroupIcon,
   CheckCircleIcon,
   ArrowTrendingUpIcon,
   SparklesIcon,
+  StarIcon,
 } from '@heroicons/react/24/outline';
 
 interface Analytics {
@@ -106,6 +108,13 @@ function HeatmapChart({ cells }: { cells: { day: number; hour: number; count: nu
   );
 }
 
+interface CsatData {
+  total: number;
+  avg: number | null;
+  distribution: { score: number; count: number }[];
+  responses: { id: string; score: number; comment?: string; createdAt: string }[];
+}
+
 export default function Analytics() {
   const { currentWorkspace } = useWorkspaceStore();
   const [data, setData] = useState<Analytics | null>(null);
@@ -113,6 +122,7 @@ export default function Analytics() {
   const [heatmap, setHeatmap] = useState<{ cells: { day: number; hour: number; count: number }[]; total: number } | null>(null);
   const [byChannel, setByChannel] = useState<any[]>([]);
   const [byLanguage, setByLanguage] = useState<any[]>([]);
+  const [csat, setCsat] = useState<CsatData | null>(null);
 
   useEffect(() => {
     if (!currentWorkspace) return;
@@ -122,11 +132,13 @@ export default function Analytics() {
       api.get(`/workspaces/${currentWorkspace.id}/analytics/heatmap`),
       api.get(`/workspaces/${currentWorkspace.id}/analytics/by-channel`),
       api.get(`/workspaces/${currentWorkspace.id}/analytics/by-language`),
-    ]).then(([a, h, c, l]) => {
+      csatApi.get(currentWorkspace.id).catch(() => ({ data: null })),
+    ]).then(([a, h, c, l, cs]) => {
       setData(a.data);
       setHeatmap(h.data);
       setByChannel(c.data);
       setByLanguage(l.data);
+      if (cs.data) setCsat(cs.data);
     }).catch(console.error).finally(() => setLoading(false));
   }, [currentWorkspace]);
 
@@ -270,6 +282,58 @@ export default function Analytics() {
                           </div>
                         );
                       })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* CSAT Section */}
+              {csat && (
+                <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">Customer Satisfaction (CSAT)</h3>
+                      <p className="text-xs text-gray-400 mt-0.5">Last 30 days · {csat.total} response{csat.total !== 1 ? 's' : ''}</p>
+                    </div>
+                    {csat.avg !== null && (
+                      <div className="flex items-center gap-1.5 bg-yellow-50 border border-yellow-100 rounded-xl px-4 py-2">
+                        <StarIcon className="w-5 h-5 text-yellow-400 fill-yellow-400" />
+                        <span className="text-2xl font-bold text-gray-900">{csat.avg}</span>
+                        <span className="text-sm text-gray-400">/5</span>
+                      </div>
+                    )}
+                  </div>
+                  {csat.total === 0 ? (
+                    <div className="text-center py-6 text-gray-400 text-sm">No CSAT responses yet. Send surveys from resolved conversations.</div>
+                  ) : (
+                    <div className="space-y-2">
+                      {[5, 4, 3, 2, 1].map(score => {
+                        const d = csat.distribution.find(x => x.score === score);
+                        const count = d?.count || 0;
+                        const pct = csat.total ? Math.round((count / csat.total) * 100) : 0;
+                        const LABELS: Record<number, string> = { 5: '😄 Excellent', 4: '😊 Good', 3: '😐 Neutral', 2: '😞 Poor', 1: '😠 Terrible' };
+                        const COLORS: Record<number, string> = { 5: 'bg-green-500', 4: 'bg-green-400', 3: 'bg-yellow-400', 2: 'bg-orange-400', 1: 'bg-red-500' };
+                        return (
+                          <div key={score} className="flex items-center gap-3">
+                            <span className="text-xs w-24 text-gray-600 flex-shrink-0">{LABELS[score]}</span>
+                            <div className="flex-1 h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className={`h-full rounded-full transition-all ${COLORS[score]}`} style={{ width: `${pct}%` }} />
+                            </div>
+                            <span className="text-xs text-gray-500 w-10 text-right flex-shrink-0">{count} <span className="text-gray-300">({pct}%)</span></span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {/* Recent comments */}
+                  {csat.responses?.filter(r => r.comment).slice(0, 3).length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Recent Comments</p>
+                      {csat.responses.filter(r => r.comment).slice(0, 3).map(r => (
+                        <div key={r.id} className="flex items-start gap-2 bg-gray-50 rounded-lg p-3">
+                          <span className="text-sm flex-shrink-0">{['', '😠', '😞', '😐', '😊', '😄'][r.score]}</span>
+                          <p className="text-xs text-gray-600 italic">"{r.comment}"</p>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>

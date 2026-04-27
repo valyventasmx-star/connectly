@@ -194,4 +194,55 @@ router.post('/merge', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ── Bulk actions ─────────────────────────────────────────────────────────────
+router.post('/bulk', async (req: AuthRequest, res: Response) => {
+  const { ids, action, value } = req.body as {
+    ids: string[];
+    action: 'resolve' | 'reopen' | 'assign' | 'tag' | 'delete';
+    value?: string;
+  };
+  if (!ids?.length || !action) return res.status(400).json({ error: 'ids and action required' });
+
+  // Verify all convs belong to this workspace
+  const count = await prisma.conversation.count({
+    where: { id: { in: ids }, workspaceId: req.params.workspaceId },
+  });
+  if (count !== ids.length) return res.status(403).json({ error: 'Unauthorized' });
+
+  if (action === 'resolve') {
+    await prisma.conversation.updateMany({ where: { id: { in: ids } }, data: { status: 'resolved' } });
+  } else if (action === 'reopen') {
+    await prisma.conversation.updateMany({ where: { id: { in: ids } }, data: { status: 'open' } });
+  } else if (action === 'assign') {
+    await prisma.conversation.updateMany({ where: { id: { in: ids } }, data: { assigneeId: value || null } });
+  } else if (action === 'delete') {
+    await prisma.conversation.deleteMany({ where: { id: { in: ids } } });
+  }
+
+  res.json({ updated: ids.length });
+});
+
+// ── Revenue attribution ───────────────────────────────────────────────────────
+router.post('/:conversationId/convert', async (req: AuthRequest, res: Response) => {
+  const { value } = req.body as { value?: number };
+  const conv = await prisma.conversation.findFirst({
+    where: { id: req.params.conversationId, workspaceId: req.params.workspaceId },
+  });
+  if (!conv) return res.status(404).json({ error: 'Not found' });
+
+  const updated = await prisma.conversation.update({
+    where: { id: conv.id },
+    data: { convertedAt: new Date(), convertedValue: value || 0 },
+  });
+  res.json(updated);
+});
+
+router.delete('/:conversationId/convert', async (req: AuthRequest, res: Response) => {
+  await prisma.conversation.updateMany({
+    where: { id: req.params.conversationId, workspaceId: req.params.workspaceId },
+    data: { convertedAt: null, convertedValue: null },
+  });
+  res.json({ ok: true });
+});
+
 export default router;

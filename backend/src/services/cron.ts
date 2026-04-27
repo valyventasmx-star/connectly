@@ -64,7 +64,44 @@ export function startCronJobs() {
     }
   });
 
-  console.log('⏰ Cron jobs started (scheduled messages + unsnooze)');
+  // ── SLA Escalation — runs every 5 minutes ──────────────────────────────────
+  cron.schedule('*/5 * * * *', async () => {
+    try {
+      const now = new Date();
+      const warningThreshold = new Date(now.getTime() + 30 * 60 * 1000); // 30 min from now
+
+      // Find conversations where SLA will breach in 30 min OR is already overdue (but not yet notified this cycle)
+      const atRisk = await prisma.conversation.findMany({
+        where: {
+          status: 'open',
+          slaDueAt: { lte: warningThreshold },
+        },
+        include: {
+          workspace: { select: { id: true, name: true } },
+          contact: { select: { name: true } },
+          assignee: { select: { id: true, name: true } },
+        },
+        take: 50,
+      });
+
+      const io = getIO();
+      for (const conv of atRisk) {
+        const isOverdue = conv.slaDueAt! < now;
+        // Emit SLA alert to the workspace room — frontend can show a toast/badge
+        io.to(`workspace:${conv.workspace.id}`).emit('sla_alert', {
+          conversationId: conv.id,
+          contactName: conv.contact.name,
+          isOverdue,
+          slaDueAt: conv.slaDueAt,
+          assigneeName: conv.assignee?.name ?? null,
+        });
+      }
+    } catch (e) {
+      console.error('SLA escalation cron error:', e);
+    }
+  });
+
+  console.log('⏰ Cron jobs started (scheduled messages + unsnooze + SLA escalation)');
 }
 
 // Daily digest — runs every day at 7:00 AM

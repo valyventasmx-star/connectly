@@ -36,6 +36,7 @@ model Workspace {
   stripeSubscriptionId String?
   planExpiresAt        DateTime?
   aiEnabled            Boolean   @default(false)
+  aiAutoPilot          Boolean   @default(false)
   aiPrompt             String?
   slaHours             Int       @default(24)
   businessHours        String?   // JSON: [{day:0,start:"09:00",end:"18:00",enabled:true}]
@@ -92,8 +93,11 @@ model Broadcast {
   scheduledAt   DateTime?
   sentAt        DateTime?
   totalContacts Int       @default(0)
-  sentCount     Int       @default(0)
-  failedCount   Int       @default(0)
+  sentCount       Int       @default(0)
+  failedCount     Int       @default(0)
+  variantMessage  String?
+  variantSentCount   Int   @default(0)
+  variantFailedCount Int   @default(0)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -232,6 +236,8 @@ model Conversation {
   slaDueAt        DateTime?
   csatScore       Int?
   csatSentAt      DateTime?
+  convertedAt     DateTime?
+  convertedValue  Float?
   unreadCount     Int       @default(0)
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

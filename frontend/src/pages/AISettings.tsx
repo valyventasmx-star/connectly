@@ -7,6 +7,7 @@ import { SparklesIcon } from '@heroicons/react/24/outline';
 export default function AISettings() {
   const { currentWorkspace } = useWorkspaceStore();
   const [enabled, setEnabled] = useState(false);
+  const [autoPilot, setAutoPilot] = useState(false);
   const [prompt, setPrompt] = useState('');
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -18,6 +19,7 @@ export default function AISettings() {
     api.get(`/workspaces/${currentWorkspace.id}/ai`)
       .then(({ data }) => {
         setEnabled(data.aiEnabled);
+        setAutoPilot(data.aiAutoPilot || false);
         setPrompt(data.aiPrompt || '');
       })
       .catch(console.error)
@@ -28,7 +30,7 @@ export default function AISettings() {
     if (!currentWorkspace) return;
     setSaving(true);
     try {
-      await api.patch(`/workspaces/${currentWorkspace.id}/ai`, { aiEnabled: enabled, aiPrompt: prompt });
+      await api.patch(`/workspaces/${currentWorkspace.id}/ai`, { aiEnabled: enabled, aiAutoPilot: autoPilot, aiPrompt: prompt });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (e: any) {
@@ -88,6 +90,40 @@ export default function AISettings() {
                       <a href="/billing" className="font-semibold underline">Upgrade now</a>
                     </p>
                   </div>
+                )}
+              </div>
+
+              {/* AI Autopilot */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-purple-100 rounded-xl flex items-center justify-center">
+                      <SparklesIcon className="w-5 h-5 text-purple-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">AI Autopilot 🤖</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Claude autonomously handles ALL inbound messages end-to-end — no human needed unless it can't resolve the issue. Works on Instagram &amp; Messenger channels.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAutoPilot(!autoPilot)}
+                    disabled={!enabled}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 ${
+                      autoPilot ? 'bg-purple-500' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${autoPilot ? 'translate-x-5' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                {autoPilot && (
+                  <div className="mt-3 p-3 bg-purple-50 border border-purple-100 rounded-xl text-xs text-purple-700">
+                    ⚠️ Autopilot is <strong>ON</strong> — Claude will reply to every inbound message automatically. Make sure your System Prompt is well configured.
+                  </div>
+                )}
+                {!enabled && (
+                  <p className="text-xs text-gray-400 mt-3">Enable AI Auto-Reply above first to use Autopilot.</p>
                 )}
               </div>
 

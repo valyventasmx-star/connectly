@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Conversation, Message } from '../../types';
-import { messagesApi, csatApi, aiApi, snoozeApi, scheduledMessagesApi, conversationMergeApi, conversationsApi } from '../../api/client';
+import { messagesApi, csatApi, aiApi, snoozeApi, scheduledMessagesApi, conversationMergeApi, conversationsApi, revenueApi } from '../../api/client';
 import { useWorkspaceStore } from '../../store/workspace';
 import { getSocket } from '../../hooks/useSocket';
 import MessageBubble from './MessageBubble';
@@ -8,7 +8,7 @@ import ChatInput from './ChatInput';
 import ContactPanel from './ContactPanel';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
-import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon, SparklesIcon, DocumentTextIcon, MoonIcon, ClockIcon, XMarkIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon, SparklesIcon, DocumentTextIcon, MoonIcon, ClockIcon, XMarkIcon, ArrowsRightLeftIcon, LanguageIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 interface Props {
@@ -31,6 +31,14 @@ export default function ChatArea({ conversation }: Props) {
   const [showMergeConv, setShowMergeConv] = useState(false);
   const [mergeConvId, setMergeConvId] = useState('');
   const [mergingConv, setMergingConv] = useState(false);
+  const [translateMode, setTranslateMode] = useState(false);
+  const [translations, setTranslations] = useState<Record<string, string>>({});
+  const [translatingIds, setTranslatingIds] = useState<Set<string>>(new Set());
+  const [translateLang, setTranslateLang] = useState('English');
+  const [convertedValue, setConvertedValue] = useState<number | null>((conversation as any).convertedValue ?? null);
+  const [isConverted, setIsConverted] = useState(!!(conversation as any).convertedAt);
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [convertInput, setConvertInput] = useState('');
   const [conversations, setConversations] = useState<any[]>([]);
   const [scheduleContent, setScheduleContent] = useState('');
   const [scheduleAt, setScheduleAt] = useState('');
@@ -268,6 +276,43 @@ export default function ChatArea({ conversation }: Props) {
     setShowSchedule(false);
   };
 
+  const translateMessage = async (msgId: string, text: string) => {
+    if (!currentWorkspace || translations[msgId]) return;
+    setTranslatingIds(prev => new Set(prev).add(msgId));
+    try {
+      const { data } = await aiApi.translate(currentWorkspace.id, text, translateLang);
+      setTranslations(prev => ({ ...prev, [msgId]: data.translated }));
+    } catch { /* ignore */ }
+    finally { setTranslatingIds(prev => { const s = new Set(prev); s.delete(msgId); return s; }); }
+  };
+
+  const handleTranslateToggle = async () => {
+    const newMode = !translateMode;
+    setTranslateMode(newMode);
+    if (newMode && currentWorkspace) {
+      // Translate last 10 inbound messages
+      const inbound = messages.filter(m => m.direction === 'inbound' && m.content && !translations[m.id]).slice(-10);
+      for (const m of inbound) translateMessage(m.id, m.content);
+    }
+  };
+
+  const handleMarkConverted = async () => {
+    if (!currentWorkspace) return;
+    const val = parseFloat(convertInput) || 0;
+    await revenueApi.markConverted(currentWorkspace.id, conversation.id, val);
+    setIsConverted(true);
+    setConvertedValue(val);
+    setShowConvertModal(false);
+    setConvertInput('');
+  };
+
+  const handleUnmarkConverted = async () => {
+    if (!currentWorkspace) return;
+    await revenueApi.unmarkConverted(currentWorkspace.id, conversation.id);
+    setIsConverted(false);
+    setConvertedValue(null);
+  };
+
   const handleExportConversation = () => {
     const lines = [`Conversation with ${conversation.contact.name}`, `Status: ${conversation.status}`, `Channel: ${conversation.channel?.name}`, '---', ''];
     messages.forEach(m => {
@@ -353,6 +398,22 @@ export default function ChatArea({ conversation }: Props) {
                 <StarIcon className="w-5 h-5" />
               </button>
             )}
+            {/* Auto-translate */}
+            <button
+              onClick={handleTranslateToggle}
+              className={`p-1.5 rounded-lg transition-colors ${translateMode ? 'bg-green-50 text-green-600' : 'text-gray-400 hover:bg-green-50 hover:text-green-600'}`}
+              title={translateMode ? 'Disable auto-translate' : 'Translate messages'}
+            >
+              <LanguageIcon className="w-5 h-5" />
+            </button>
+            {/* Revenue attribution */}
+            <button
+              onClick={isConverted ? handleUnmarkConverted : () => setShowConvertModal(true)}
+              className={`p-1.5 rounded-lg transition-colors ${isConverted ? 'bg-emerald-50 text-emerald-600' : 'text-gray-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
+              title={isConverted ? `Converted${convertedValue ? ' ($' + convertedValue + ')' : ''} — click to undo` : 'Mark as converted (won deal)'}
+            >
+              <CurrencyDollarIcon className="w-5 h-5" />
+            </button>
             <button onClick={handleExportConversation}
               className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
               title="Export conversation">
@@ -459,6 +520,41 @@ export default function ChatArea({ conversation }: Props) {
           </div>
         )}
 
+        {/* Revenue conversion modal */}
+        {showConvertModal && (
+          <div className="px-4 py-3 bg-emerald-50 border-b border-emerald-100">
+            <p className="text-xs font-semibold text-emerald-700 mb-2 flex items-center gap-1"><CurrencyDollarIcon className="w-3.5 h-3.5" />Mark as converted</p>
+            <div className="flex gap-2 items-center">
+              <input
+                type="number"
+                placeholder="Deal value (optional, e.g. 500)"
+                value={convertInput}
+                onChange={e => setConvertInput(e.target.value)}
+                className="flex-1 text-xs border border-emerald-200 rounded-lg px-2 py-1.5 bg-white"
+              />
+              <button onClick={handleMarkConverted} className="px-3 py-1.5 bg-emerald-600 text-white text-xs rounded-lg">Mark Won ✓</button>
+              <button onClick={() => setShowConvertModal(false)} className="px-2 py-1.5 text-gray-400 text-xs hover:bg-white rounded-lg">Cancel</button>
+            </div>
+          </div>
+        )}
+
+        {/* Translate language picker */}
+        {translateMode && (
+          <div className="px-4 py-1.5 bg-green-50 border-b border-green-100 flex items-center gap-2">
+            <LanguageIcon className="w-3.5 h-3.5 text-green-600 flex-shrink-0" />
+            <span className="text-xs text-green-700">Translating to:</span>
+            <select
+              value={translateLang}
+              onChange={e => { setTranslateLang(e.target.value); setTranslations({}); }}
+              className="text-xs border border-green-200 rounded px-1 py-0.5 bg-white text-green-700"
+            >
+              {['English','Spanish','Portuguese','French','German','Italian','Japanese','Chinese','Arabic'].map(l => (
+                <option key={l}>{l}</option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Keyboard shortcut hint */}
         <div className="px-4 py-1 bg-gray-50 border-b border-gray-100 flex items-center gap-3 text-[10px] text-gray-400">
           <span><kbd className="bg-gray-200 px-1 rounded">J</kbd>/<kbd className="bg-gray-200 px-1 rounded">K</kbd> navigate</span>
@@ -482,13 +578,33 @@ export default function ChatArea({ conversation }: Props) {
           ) : (
             <>
               {(messages as Message[]).map((msg, idx) => (
-                <MessageBubble
-                  key={msg.id}
-                  message={msg}
-                  showDate={shouldShowDate(idx)}
-                  conversationId={conversation.id}
-                  onReactionUpdate={handleReactionUpdate}
-                />
+                <div key={msg.id}>
+                  <MessageBubble
+                    message={msg}
+                    showDate={shouldShowDate(idx)}
+                    conversationId={conversation.id}
+                    onReactionUpdate={handleReactionUpdate}
+                  />
+                  {/* Auto-translation: show for inbound messages when translate mode is on */}
+                  {translateMode && msg.direction === 'inbound' && msg.content && (
+                    <div className="ml-12 mt-0.5 mb-1">
+                      {translatingIds.has(msg.id) ? (
+                        <span className="text-[10px] text-gray-400 italic">Translating…</span>
+                      ) : translations[msg.id] ? (
+                        <span className="text-[10px] text-green-700 bg-green-50 px-2 py-0.5 rounded-lg border border-green-100">
+                          🌐 {translations[msg.id]}
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => translateMessage(msg.id, msg.content)}
+                          className="text-[10px] text-gray-400 hover:text-green-600 underline"
+                        >
+                          Translate
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               ))}
               {/* Typing indicator */}
               {typingUsers.length > 0 && (
@@ -507,7 +623,7 @@ export default function ChatArea({ conversation }: Props) {
         </div>
 
         {/* Input */}
-        <ChatInput onSend={handleSend} onTyping={handleTypingStart} />
+        <ChatInput onSend={handleSend} onTyping={handleTypingStart} contact={conversation.contact as any} />
       </div>
 
       {/* Contact panel */}

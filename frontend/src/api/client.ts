@@ -282,6 +282,25 @@ export const aiApi = {
     api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/ai-summary`),
   triage: (workspaceId: string) =>
     api.post(`/workspaces/${workspaceId}/ai/triage`),
+  translate: (workspaceId: string, text: string, targetLang: string) =>
+    api.post(`/workspaces/${workspaceId}/ai/translate`, { text, targetLang }),
+};
+
+export const bulkConversationsApi = {
+  bulk: (workspaceId: string, ids: string[], action: string, value?: string) =>
+    api.post(`/workspaces/${workspaceId}/conversations/bulk`, { ids, action, value }),
+};
+
+export const revenueApi = {
+  markConverted: (workspaceId: string, conversationId: string, value?: number) =>
+    api.post(`/workspaces/${workspaceId}/conversations/${conversationId}/convert`, { value }),
+  unmarkConverted: (workspaceId: string, conversationId: string) =>
+    api.delete(`/workspaces/${workspaceId}/conversations/${conversationId}/convert`),
+};
+
+export const dedupApi = {
+  findDuplicates: (workspaceId: string) =>
+    api.get(`/workspaces/${workspaceId}/contacts/duplicates`),
 };
 
 // Snooze

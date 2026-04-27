@@ -8,6 +8,9 @@ interface Broadcast {
   id: string;
   name: string;
   message: string;
+  variantMessage?: string;
+  variantSentCount?: number;
+  variantFailedCount?: number;
   status: string;
   totalContacts: number;
   sentCount: number;
@@ -37,7 +40,8 @@ export default function Broadcasts() {
   const [loading, setLoading] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [sending, setSending] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', message: '', channelId: '', lifecycleStage: '' });
+  const [form, setForm] = useState({ name: '', message: '', variantMessage: '', channelId: '', lifecycleStage: '' });
+  const [abEnabled, setAbEnabled] = useState(false);
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
@@ -57,9 +61,11 @@ export default function Broadcasts() {
         name: form.name,
         message: form.message,
         channelId: form.channelId || undefined,
+        variantMessage: abEnabled && form.variantMessage ? form.variantMessage : undefined,
       });
       setBroadcasts(prev => [data, ...prev]);
-      setForm({ name: '', message: '', channelId: '', lifecycleStage: '' });
+      setForm({ name: '', message: '', variantMessage: '', channelId: '', lifecycleStage: '' });
+      setAbEnabled(false);
       setShowNew(false);
     } catch (e: any) {
       alert(e?.response?.data?.error || 'Failed to create broadcast');
@@ -120,7 +126,16 @@ export default function Broadcasts() {
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-gray-500 mb-1 block">Message</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-medium text-gray-500">{abEnabled ? 'Message A (first 50%)' : 'Message'}</label>
+                    <button
+                      type="button"
+                      onClick={() => setAbEnabled(v => !v)}
+                      className={`text-xs px-2 py-0.5 rounded-full font-semibold transition-colors ${abEnabled ? 'bg-purple-100 text-purple-700' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    >
+                      {abEnabled ? '🧪 A/B ON' : '+ A/B Test'}
+                    </button>
+                  </div>
                   <textarea
                     value={form.message}
                     onChange={e => setForm(f => ({ ...f, message: e.target.value }))}
@@ -130,6 +145,24 @@ export default function Broadcasts() {
                   />
                   <p className="text-xs text-gray-400 mt-1">{form.message.length} characters</p>
                 </div>
+
+                {abEnabled && (
+                  <div className="border border-purple-100 bg-purple-50 rounded-xl p-4 space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-semibold text-purple-700">🧪 Message B (second 50%)</span>
+                      <span className="text-[10px] bg-purple-200 text-purple-700 px-1.5 py-0.5 rounded-full">A/B Test</span>
+                    </div>
+                    <textarea
+                      value={form.variantMessage}
+                      onChange={e => setForm(f => ({ ...f, variantMessage: e.target.value }))}
+                      rows={4}
+                      placeholder="Type your variant B message..."
+                      className="w-full text-sm border border-purple-200 bg-white rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 resize-none"
+                    />
+                    <p className="text-xs text-purple-500">{form.variantMessage.length} characters · Contacts split 50/50 randomly</p>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-xs font-medium text-gray-500 mb-1 block">Channel (optional)</label>
@@ -188,10 +221,29 @@ export default function Broadcasts() {
                     </div>
                     <p className="text-sm text-gray-500 truncate mb-2">{b.message}</p>
                     {b.status === 'completed' && (
-                      <div className="flex gap-4 text-xs text-gray-400">
-                        <span>✅ {b.sentCount} sent</span>
-                        {b.failedCount > 0 && <span>❌ {b.failedCount} failed</span>}
-                        <span>Total: {b.totalContacts}</span>
+                      <div className="space-y-1">
+                        {b.variantMessage ? (
+                          <div className="flex gap-3 text-xs">
+                            <span className="text-gray-500 font-semibold">A:</span>
+                            <span className="text-green-600">✅ {b.sentCount} sent</span>
+                            {b.failedCount > 0 && <span className="text-red-500">❌ {b.failedCount} failed</span>}
+                            <span className="text-purple-600 font-semibold ml-2">B:</span>
+                            <span className="text-green-600">✅ {b.variantSentCount ?? 0} sent</span>
+                            {(b.variantFailedCount ?? 0) > 0 && <span className="text-red-500">❌ {b.variantFailedCount} failed</span>}
+                          </div>
+                        ) : (
+                          <div className="flex gap-4 text-xs text-gray-400">
+                            <span>✅ {b.sentCount} sent</span>
+                            {b.failedCount > 0 && <span>❌ {b.failedCount} failed</span>}
+                            <span>Total: {b.totalContacts}</span>
+                          </div>
+                        )}
+                        {b.variantMessage && (
+                          <div className="flex gap-2 text-xs">
+                            <span className="bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full font-semibold">🧪 A/B</span>
+                            <span className="text-gray-400">Total: {b.totalContacts}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

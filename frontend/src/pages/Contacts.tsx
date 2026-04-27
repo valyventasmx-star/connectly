@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
-import { contactsApi, tagsApi, importApi, contactMergeApi } from '../api/client';
+import { contactsApi, tagsApi, importApi, contactMergeApi, dedupApi } from '../api/client';
 import { Contact } from '../types';
 import Avatar from '../components/ui/Avatar';
 import Button from '../components/ui/Button';
@@ -22,6 +22,7 @@ import {
   EyeIcon,
   CheckIcon,
   ArrowsRightLeftIcon,
+  DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -66,6 +67,12 @@ export default function Contacts() {
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergeSecondaryId, setMergeSecondaryId] = useState('');
   const [merging, setMerging] = useState(false);
+
+  // Deduplication
+  const [showDedupModal, setShowDedupModal] = useState(false);
+  const [dedupGroups, setDedupGroups] = useState<any[]>([]);
+  const [dedupLoading, setDedupLoading] = useState(false);
+  const [mergingDedup, setMergingDedup] = useState<string | null>(null);
 
   // CSV import
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -201,6 +208,39 @@ export default function Contacts() {
     }
   };
 
+  const runDedup = async () => {
+    if (!currentWorkspace) return;
+    setDedupLoading(true);
+    setShowDedupModal(true);
+    try {
+      const { data } = await dedupApi.findDuplicates(currentWorkspace.id);
+      setDedupGroups(data.groups || []);
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Failed to find duplicates');
+      setShowDedupModal(false);
+    } finally {
+      setDedupLoading(false);
+    }
+  };
+
+  const handleDedupMerge = async (primaryId: string, secondaryId: string) => {
+    if (!currentWorkspace) return;
+    setMergingDedup(secondaryId);
+    try {
+      await contactMergeApi.merge(currentWorkspace.id, primaryId, secondaryId);
+      // Remove the merged secondary from the group
+      setDedupGroups(prev =>
+        prev.map(g => ({ ...g, contacts: g.contacts.filter((c: any) => c.id !== secondaryId) }))
+          .filter(g => g.contacts.length >= 2)
+      );
+      load();
+    } catch (err: any) {
+      alert(err.response?.data?.error || 'Merge failed');
+    } finally {
+      setMergingDedup(null);
+    }
+  };
+
   const handleMerge = async () => {
     if (!currentWorkspace || !selected || !mergeSecondaryId) return;
     setMerging(true);
@@ -236,6 +276,7 @@ export default function Contacts() {
               </span>
             )}
             <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
+            <Button variant="outline" size="sm" icon={<DocumentDuplicateIcon className="w-4 h-4" />} onClick={runDedup}>Find Duplicates</Button>
             <Button variant="outline" size="sm" icon={<ArrowDownTrayIcon className="w-4 h-4" />} onClick={downloadTemplate}>Template</Button>
             <Button variant="secondary" size="sm" icon={importing ? undefined : <ArrowUpTrayIcon className="w-4 h-4" />} loading={importing} onClick={() => fileInputRef.current?.click()}>Import CSV</Button>
             <Button icon={<PlusIcon className="w-4 h-4" />} onClick={openCreate}>Add Contact</Button>
@@ -425,6 +466,58 @@ export default function Contacts() {
             />
           </div>
         </div>
+      </Modal>
+
+      {/* Deduplication Modal */}
+      <Modal
+        open={showDedupModal}
+        onClose={() => setShowDedupModal(false)}
+        title="Find Duplicate Contacts"
+      >
+        {dedupLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full" />
+          </div>
+        ) : dedupGroups.length === 0 ? (
+          <div className="text-center py-10">
+            <DocumentDuplicateIcon className="w-10 h-10 text-green-400 mx-auto mb-3" />
+            <p className="text-sm font-medium text-gray-700">No duplicates found!</p>
+            <p className="text-xs text-gray-400 mt-1">All your contacts look unique.</p>
+          </div>
+        ) : (
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-1">
+            <p className="text-xs text-gray-500">{dedupGroups.length} group{dedupGroups.length !== 1 ? 's' : ''} of potential duplicates found. The first contact in each group is the primary.</p>
+            {dedupGroups.map((group, gi) => (
+              <div key={gi} className="border border-gray-100 rounded-xl overflow-hidden">
+                <div className="bg-gray-50 px-3 py-2 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Group {gi + 1}</span>
+                  <span className="text-xs text-gray-400">matched by {group.matchKey === 'phone' ? 'phone number' : 'email'}</span>
+                </div>
+                {group.contacts.map((c: any, ci: number) => (
+                  <div key={c.id} className="flex items-center justify-between px-3 py-3 border-t border-gray-50 first:border-0 bg-white">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <Avatar name={c.name} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{c.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{c.phone || c.email || '—'}</p>
+                      </div>
+                      {ci === 0 && <span className="text-[10px] bg-primary-100 text-primary-700 px-1.5 py-0.5 rounded-full font-semibold flex-shrink-0">Primary</span>}
+                    </div>
+                    {ci > 0 && (
+                      <button
+                        onClick={() => handleDedupMerge(group.contacts[0].id, c.id)}
+                        disabled={mergingDedup === c.id}
+                        className="text-xs font-semibold text-white bg-blue-500 hover:bg-blue-600 px-2.5 py-1 rounded-lg disabled:opacity-50 flex-shrink-0 ml-2"
+                      >
+                        {mergingDedup === c.id ? 'Merging…' : 'Merge into primary'}
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </Modal>
 
       {/* Merge Contact Modal */}

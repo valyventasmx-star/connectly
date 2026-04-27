@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { MagnifyingGlassIcon, PlusIcon, BookmarkIcon, XMarkIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { MagnifyingGlassIcon, PlusIcon, BookmarkIcon, XMarkIcon, SparklesIcon, CheckIcon } from '@heroicons/react/24/outline';
 import { useWorkspaceStore } from '../../store/workspace';
 import { useAuthStore } from '../../store/auth';
-import { conversationsApi, inboxViewsApi, aiApi } from '../../api/client';
+import { conversationsApi, inboxViewsApi, aiApi, bulkConversationsApi } from '../../api/client';
 import { Conversation } from '../../types';
 import ConversationItem, { TriageInfo } from './ConversationItem';
 import Button from '../ui/Button';
@@ -36,6 +36,11 @@ export default function ConversationList({ onNewConversation }: Props) {
   const [triageLoading, setTriageLoading] = useState(false);
   const [triageMap, setTriageMap] = useState<Record<string, TriageInfo>>({});
   const [triageActive, setTriageActive] = useState(false);
+
+  // Bulk actions
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   useEffect(() => {
     if (!currentWorkspace) return;
@@ -118,6 +123,31 @@ export default function ConversationList({ onNewConversation }: Props) {
     setTriageActive(false);
   };
 
+  const toggleBulkMode = () => {
+    setBulkMode(v => !v);
+    setSelectedIds(new Set());
+  };
+
+  const handleSelect = (id: string, checked: boolean) => {
+    setSelectedIds(prev => {
+      const s = new Set(prev);
+      checked ? s.add(id) : s.delete(id);
+      return s;
+    });
+  };
+
+  const handleBulkAction = async (action: 'resolve' | 'reopen' | 'assign') => {
+    if (!currentWorkspace || selectedIds.size === 0) return;
+    setBulkLoading(true);
+    try {
+      await bulkConversationsApi.bulk(currentWorkspace.id, Array.from(selectedIds), action);
+      setSelectedIds(new Set());
+      setBulkMode(false);
+      loadConversations();
+    } catch (err) { console.error(err); }
+    finally { setBulkLoading(false); }
+  };
+
   const filtered = conversations.filter((c) =>
     !search || c.contact.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -138,6 +168,16 @@ export default function ConversationList({ onNewConversation }: Props) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-base font-semibold text-gray-900">Conversations</h2>
           <div className="flex items-center gap-1">
+            <button
+              onClick={toggleBulkMode}
+              title="Bulk select conversations"
+              className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium transition-colors ${
+                bulkMode ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700'
+              }`}
+            >
+              <CheckIcon className="w-3.5 h-3.5" />
+              {bulkMode ? 'Cancel' : 'Select'}
+            </button>
             <button
               onClick={triageActive ? clearTriage : runTriage}
               disabled={triageLoading}
@@ -238,6 +278,35 @@ export default function ConversationList({ onNewConversation }: Props) {
         ))}
       </div>
 
+      {/* Bulk action bar */}
+      {bulkMode && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border-b border-blue-100 flex-shrink-0">
+          <span className="text-xs text-blue-700 font-medium flex-1">
+            {selectedIds.size} selected
+          </span>
+          <button
+            onClick={() => handleBulkAction('resolve')}
+            disabled={bulkLoading || selectedIds.size === 0}
+            className="text-xs px-2 py-1 bg-green-600 text-white rounded-lg disabled:opacity-50 hover:bg-green-700"
+          >
+            ✓ Resolve
+          </button>
+          <button
+            onClick={() => handleBulkAction('reopen')}
+            disabled={bulkLoading || selectedIds.size === 0}
+            className="text-xs px-2 py-1 bg-blue-600 text-white rounded-lg disabled:opacity-50 hover:bg-blue-700"
+          >
+            ↺ Reopen
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set(displayed.map(c => c.id)))}
+            className="text-xs px-2 py-1 border border-blue-300 text-blue-600 rounded-lg hover:bg-blue-100"
+          >
+            All
+          </button>
+        </div>
+      )}
+
       {/* AI Triage active banner */}
       {triageActive && (
         <div className="flex items-center gap-2 px-3 py-2 bg-purple-50 border-b border-purple-100 flex-shrink-0">
@@ -272,8 +341,10 @@ export default function ConversationList({ onNewConversation }: Props) {
               key={conv.id}
               conversation={conv}
               active={activeConversation?.id === conv.id}
-              onClick={() => setActiveConversation(conv)}
+              onClick={() => { if (!bulkMode) setActiveConversation(conv); }}
               triageInfo={triageMap[conv.id]}
+              selected={bulkMode ? selectedIds.has(conv.id) : undefined}
+              onSelect={bulkMode ? handleSelect : undefined}
             />
           ))
         )}
