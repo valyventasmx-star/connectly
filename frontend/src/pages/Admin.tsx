@@ -230,17 +230,33 @@ export default function Admin() {
   // Impersonation banner
   const [impersonating, setImpersonating] = useState<string | null>(null);
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   useEffect(() => {
     setLoading(true);
+    setLoadError(null);
+
+    // 10-second timeout so the page never spins forever
+    const timeout = setTimeout(() => {
+      setLoading(false);
+      setLoadError('Backend is taking too long to respond. Check that Railway is running and try refreshing.');
+    }, 10000);
+
     Promise.all([
-      api.get('/admin/stats'),
-      api.get('/admin/workspaces'),
-      api.get('/admin/users'),
+      api.get('/admin/stats').catch(() => ({ data: null })),
+      api.get('/admin/workspaces').catch(() => ({ data: [] })),
+      api.get('/admin/users').catch(() => ({ data: { users: [] } })),
     ]).then(([s, w, u]) => {
-      setStats(s.data);
-      setWorkspaces(w.data);
-      setUsers(u.data.users);
-    }).catch(console.error).finally(() => setLoading(false));
+      clearTimeout(timeout);
+      if (s.data) setStats(s.data);
+      setWorkspaces(w.data || []);
+      setUsers(u.data?.users || []);
+    }).catch(err => {
+      clearTimeout(timeout);
+      setLoadError(err?.response?.data?.error || 'Failed to load admin data. You may not have admin access.');
+    }).finally(() => setLoading(false));
+
+    return () => clearTimeout(timeout);
   }, []);
 
   if (!user?.isAdmin) {
@@ -350,8 +366,17 @@ export default function Admin() {
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {loadError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+              ⚠️ {loadError}
+              <button onClick={() => window.location.reload()} className="ml-3 underline font-semibold">Retry</button>
+            </div>
+          )}
           {loading ? (
-            <div className="flex justify-center py-16"><div className="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full" /></div>
+            <div className="flex flex-col items-center justify-center py-16 gap-3">
+              <div className="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full" />
+              <p className="text-sm text-gray-400">Loading admin data…</p>
+            </div>
           ) : (
             <>
               {/* Stat cards */}
