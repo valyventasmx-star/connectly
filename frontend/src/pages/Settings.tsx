@@ -13,6 +13,65 @@ import Avatar from '../components/ui/Avatar';
 import { PlusIcon, PencilIcon, TrashIcon, GlobeAltIcon, ClipboardDocumentIcon, KeyIcon } from '@heroicons/react/24/outline';
 import { format } from 'date-fns';
 
+// ── Inline invite form ────────────────────────────────────────────────────────
+function InviteForm({ workspaceId }: { workspaceId: string }) {
+  const [email, setEmail] = useState('');
+  const [role, setRole]   = useState('agent');
+  const [busy, setBusy]   = useState(false);
+  const [msg, setMsg]     = useState<{ text: string; ok: boolean } | null>(null);
+
+  async function handleInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || !workspaceId) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/invitations/send`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`,
+        },
+        body: JSON.stringify({ email: email.trim(), role }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed');
+      setMsg({ text: data.message ?? 'Invitation sent!', ok: true });
+      setEmail('');
+    } catch (err: any) {
+      setMsg({ text: err.message, ok: false });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleInvite} className="flex flex-col gap-2">
+      <div className="flex gap-2">
+        <input
+          type="email" value={email} onChange={e => setEmail(e.target.value)}
+          placeholder="colleague@company.com" required
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+        <select value={role} onChange={e => setRole(e.target.value)}
+          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+          <option value="agent">Agent</option>
+          <option value="supervisor">Supervisor</option>
+          <option value="admin">Admin</option>
+          <option value="viewer">Viewer</option>
+        </select>
+        <button type="submit" disabled={busy || !email.trim()}
+          className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+          {busy ? 'Sending…' : 'Invite'}
+        </button>
+      </div>
+      {msg && (
+        <p className={`text-xs px-1 ${msg.ok ? 'text-green-600' : 'text-red-600'}`}>{msg.text}</p>
+      )}
+    </form>
+  );
+}
+
 const WEBHOOK_EVENTS = [
   'conversation.created', 'conversation.resolved', 'conversation.assigned',
   'message.received', 'message.sent', 'contact.created',
@@ -1260,6 +1319,10 @@ export default function Settings() {
                   <h3 className="text-sm font-semibold text-gray-900 mb-1">Members & Roles</h3>
                   <p className="text-xs text-gray-500">Manage team members and their permissions in this workspace</p>
                 </div>
+
+                {/* ── Invite form ── */}
+                <InviteForm workspaceId={currentWorkspace?.id || ''} />
+
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-700">
                   <strong>Role permissions:</strong> Admin — full access · Supervisor — manage agents & view reports · Agent — handle conversations · Viewer — read-only
                 </div>

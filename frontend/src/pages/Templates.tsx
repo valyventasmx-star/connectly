@@ -10,8 +10,8 @@ import {
   XCircleIcon,
   DocumentTextIcon,
 } from '@heroicons/react/24/outline';
-import api from '../lib/api';
-import { useStore } from '../store';
+import api from '../api/client';
+import { useWorkspaceStore } from '../store/workspace';
 
 interface Template {
   id: string;
@@ -49,7 +49,7 @@ const LANGUAGES  = [
 ];
 
 export default function Templates() {
-  const { currentWorkspace } = useStore();
+  const { currentWorkspace } = useWorkspaceStore();
   const [templates, setTemplates]   = useState<Template[]>([]);
   const [loading, setLoading]       = useState(true);
   const [syncing, setSyncing]       = useState(false);

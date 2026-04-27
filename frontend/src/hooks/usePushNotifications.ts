@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useRef } from 'react';
-import api from '../lib/api';
+import api from '../api/client';
 
 export function usePushNotifications(workspaceId: string | undefined) {
   const attempted = useRef(false);
@@ -43,7 +43,7 @@ export function usePushNotifications(workspaceId: string | undefined) {
           // 5. Subscribe
           sub = await registration.pushManager.subscribe({
             userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(vapidKey),
+            applicationServerKey: urlBase64ToUint8Array(vapidKey) as unknown as ArrayBuffer,
           });
         }
 
