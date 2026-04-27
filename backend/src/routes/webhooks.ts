@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { getIO } from '../services/socket';
+import { notifySlack } from './slack';
 
 const router = Router();
 
@@ -115,6 +116,13 @@ router.post('/whatsapp/:channelId', async (req: Request, res: Response) => {
         io.to(`workspace:${channel.workspaceId}`).emit('conversation_updated', {
           conversationId: conversation.id,
         });
+
+        // Slack notification (non-blocking)
+        if (content && !content.startsWith('[')) {
+          notifySlack(channel.workspaceId,
+            `💬 *New WhatsApp message* from *${contact.name}* (${contact.phone || ''})\n>${content}`
+          ).catch(() => {});
+        }
       }
 
       // Handle message status updates

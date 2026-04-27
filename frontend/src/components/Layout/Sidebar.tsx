@@ -22,6 +22,7 @@ import {
   RectangleStackIcon,
   XMarkIcon,
   CpuChipIcon,
+  CalendarDaysIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -43,6 +44,7 @@ const primaryNav = [
   { to: '/knowledge-base', icon: BookOpenIcon,          label: 'Knowledge Base' },
   { to: '/templates',      icon: RectangleStackIcon,    label: 'Templates' },
   { to: '/flow-builder',   icon: CpuChipIcon,           label: 'Flow Builder' },
+  { to: '/calendar',       icon: CalendarDaysIcon,      label: 'Calendar' },
   { to: '/integrations',   icon: PuzzlePieceIcon,       label: 'Integrations' },
   { to: '/workspaces',     icon: BuildingOfficeIcon,    label: 'Workspaces' },
   { to: '/billing',        icon: CreditCardIcon,        label: 'Billing' },

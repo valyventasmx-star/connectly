@@ -52,6 +52,7 @@ model Workspace {
   hubspotApiKey        String?
   hubspotPortalId      String?
   hubspotLastSync      DateTime?
+  slackWebhookUrl      String?
   // Usage tracking
   messageCount         Int       @default(0)
   contactCount         Int       @default(0)
@@ -81,6 +82,7 @@ model Workspace {
   flowBots             FlowBot[]
   liveChatWidget       LiveChatWidget?
   trainingDocuments    TrainingDocument[]
+  calendarEvents       CalendarEvent[]
 }
 
 model Broadcast {
@@ -589,6 +591,23 @@ model TrainingDocument {
   workspaceId String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model CalendarEvent {
+  id             String    @id @default(cuid())
+  title          String
+  description    String?
+  startAt        DateTime
+  endAt          DateTime?
+  allDay         Boolean   @default(false)
+  color          String?   @default("#6366f1")
+  workspaceId    String
+  conversationId String?
+  contactId      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 }

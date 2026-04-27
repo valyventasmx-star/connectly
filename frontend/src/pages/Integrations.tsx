@@ -3,7 +3,7 @@ import AppLayout from '../components/Layout/AppLayout';
 import { useWorkspaceStore } from '../store/workspace';
 import { shopifyApi } from '../api/client';
 import api from '../api/client';
-import { CheckCircleIcon, TrashIcon, ArrowPathIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import { CheckCircleIcon, TrashIcon, ArrowPathIcon } from '@heroicons/react/24/outline';
 
 export default function Integrations() {
   const { currentWorkspace } = useWorkspaceStore();
@@ -25,6 +25,12 @@ export default function Integrations() {
   // Zapier / Webhooks
   const [zapierCopied, setZapierCopied] = useState(false);
 
+  // Slack
+  const [slack, setSlack] = useState<{ connected: boolean; masked?: string } | null>(null);
+  const [slackUrl, setSlackUrl] = useState('');
+  const [slackLoading, setSlackLoading] = useState(false);
+  const [slackMsg, setSlackMsg] = useState('');
+
   useEffect(() => {
     if (!currentWorkspace) return;
     shopifyApi.get(currentWorkspace.id).then(r => {
@@ -32,6 +38,7 @@ export default function Integrations() {
       if (r.data) setShopifyForm(f => ({ ...f, shopDomain: r.data.shopDomain }));
     }).catch(console.error);
     api.get(`/workspaces/${currentWorkspace.id}/hubspot`).then(r => setHubspot(r.data)).catch(console.error);
+    api.get(`/workspaces/${currentWorkspace.id}/slack`).then(r => setSlack(r.data)).catch(console.error);
   }, [currentWorkspace]);
 
   // Shopify handlers
@@ -82,6 +89,22 @@ export default function Integrations() {
       setHubspot(hs);
     } catch (e: any) { alert(e.response?.data?.error || 'Sync failed'); }
     finally { setHubspotSyncing(false); }
+  };
+
+  // Slack handlers
+  const connectSlack = async () => {
+    if (!currentWorkspace || !slackUrl) return;
+    setSlackLoading(true); setSlackMsg('');
+    try {
+      const { data } = await api.put(`/workspaces/${currentWorkspace.id}/slack`, { webhookUrl: slackUrl });
+      setSlack(data); setSlackMsg('✅ Slack connected — a test message was sent to your channel'); setSlackUrl('');
+    } catch (e: any) { setSlackMsg('❌ ' + (e.response?.data?.error || 'Failed to connect')); }
+    finally { setSlackLoading(false); }
+  };
+  const disconnectSlack = async () => {
+    if (!currentWorkspace || !confirm('Disconnect Slack?')) return;
+    await api.delete(`/workspaces/${currentWorkspace.id}/slack`);
+    setSlack({ connected: false }); setSlackMsg('');
   };
 
   const backendUrl = import.meta.env.VITE_API_URL?.replace('/api', '') || 'https://your-backend.railway.app';
@@ -266,15 +289,63 @@ export default function Integrations() {
               </div>
             </IntegrationCard>
 
-            {/* ── Coming soon ── */}
-            {[
-              { id: 'google', name: 'Google Contacts', icon: '📇', color: 'bg-blue-50 border-blue-200', description: 'Import and sync contacts from Google Contacts.' },
-              { id: 'slack', name: 'Slack', icon: '💬', color: 'bg-purple-50 border-purple-200', description: 'Get new conversation notifications in your Slack workspace.' },
-            ].map(int => (
-              <IntegrationCard key={int.id} {...int} connected={false} comingSoon>
-                <div />
-              </IntegrationCard>
-            ))}
+            {/* ── Slack ── */}
+            <IntegrationCard
+              icon="💬" name="Slack" color="bg-purple-50 border-purple-200"
+              description="Get a Slack notification every time a new WhatsApp, Instagram, or Messenger message arrives."
+              connected={!!slack?.connected}
+            >
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                {slack?.connected ? (
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">Webhook connected <span className="text-gray-400 font-mono text-xs">{slack.masked}</span></p>
+                      <p className="text-xs text-gray-500 mt-0.5">New messages on all channels will notify your Slack</p>
+                    </div>
+                    <button onClick={disconnectSlack} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50">
+                      <TrashIcon className="w-3 h-3 inline mr-1" />Disconnect
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="bg-purple-50 border border-purple-100 rounded-xl p-3 text-xs text-purple-800 space-y-1">
+                      <p><strong>1.</strong> Go to <a href="https://api.slack.com/apps" target="_blank" rel="noreferrer" className="underline">api.slack.com/apps</a> → Create New App → From scratch</p>
+                      <p><strong>2.</strong> Under <strong>Incoming Webhooks</strong>, enable it and click <strong>Add New Webhook to Workspace</strong></p>
+                      <p><strong>3.</strong> Choose your channel and copy the Webhook URL below</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <input className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                        placeholder="https://hooks.slack.com/services/..." value={slackUrl}
+                        onChange={e => setSlackUrl(e.target.value)} />
+                      <button onClick={connectSlack} disabled={slackLoading || !slackUrl}
+                        className="bg-purple-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-purple-700 disabled:opacity-50 whitespace-nowrap">
+                        {slackLoading ? 'Connecting…' : 'Connect'}
+                      </button>
+                    </div>
+                    {slackMsg && <p className={`text-xs ${slackMsg.startsWith('✅') ? 'text-emerald-600' : 'text-red-600'}`}>{slackMsg}</p>}
+                  </div>
+                )}
+              </div>
+            </IntegrationCard>
+
+            {/* ── Google Contacts ── */}
+            <IntegrationCard
+              icon="📇" name="Google Contacts" color="bg-blue-50 border-blue-200"
+              description="Import contacts from Google Contacts into Connectly in two steps."
+              connected={false}
+            >
+              <div className="mt-4 pt-4 border-t border-gray-100 space-y-3">
+                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-xs text-blue-800 space-y-1.5">
+                  <p className="font-semibold">How to import your Google Contacts</p>
+                  <p><strong>1.</strong> Go to <a href="https://contacts.google.com" target="_blank" rel="noreferrer" className="underline">contacts.google.com</a></p>
+                  <p><strong>2.</strong> Click <strong>Export</strong> (top-right menu) → choose <strong>Google CSV</strong></p>
+                  <p><strong>3.</strong> Come back here and use the CSV import in <strong>Contacts → Import</strong></p>
+                </div>
+                <a href="/contacts" className="inline-block bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-medium hover:bg-blue-700">
+                  Go to Contacts → Import CSV
+                </a>
+              </div>
+            </IntegrationCard>
           </div>
         </div>
       </div>

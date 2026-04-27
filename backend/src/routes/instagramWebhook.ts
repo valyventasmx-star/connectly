@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import prisma from '../lib/prisma';
 import { getIO } from '../services/socket';
 import { detectLanguage } from '../services/languageDetection';
+import { notifySlack } from './slack';
 
 const router = Router();
 
@@ -180,6 +181,14 @@ router.post('/:channelId', async (req: Request, res: Response) => {
         id: conversation.id,
         lastMessageAt: new Date(),
       });
+
+      // Slack notification (non-blocking)
+      if (text && text !== '[Attachment]') {
+        const channelLabel = platform === 'instagram' ? '📸 Instagram' : '📘 Messenger';
+        notifySlack(channel.workspaceId,
+          `${channelLabel} *New message* from *${contact.name}*\n>${text}`
+        ).catch(() => {});
+      }
     }
   }
 });

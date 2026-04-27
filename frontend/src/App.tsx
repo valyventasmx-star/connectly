@@ -28,6 +28,7 @@ import LiveChat from './pages/LiveChat';
 import AITraining from './pages/AITraining';
 import Leaderboard from './pages/Leaderboard';
 import Templates from './pages/Templates';
+import CalendarPage from './pages/Calendar';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -71,6 +72,7 @@ export default function App() {
         <Route path="/ai-training" element={<ProtectedRoute><AITraining /></ProtectedRoute>} />
         <Route path="/leaderboard" element={<ProtectedRoute><Leaderboard /></ProtectedRoute>} />
         <Route path="/templates" element={<ProtectedRoute><Templates /></ProtectedRoute>} />
+        <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
         <Route path="/legal" element={<Legal />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>

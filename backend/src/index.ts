@@ -63,6 +63,8 @@ import aiTrainingRoutes from './routes/aiTraining';
 import leaderboardRoutes from './routes/leaderboard';
 import rolesRoutes from './routes/roles';
 import hubspotRoutes from './routes/hubspot';
+import slackRoutes from './routes/slack';
+import calendarRoutes from './routes/calendar';
 import { startCronJobs, startDailyDigest } from './services/cron';
 import path from 'path';
 
@@ -143,6 +145,8 @@ app.use('/api/workspaces/:workspaceId/ai-training', aiTrainingRoutes);
 app.use('/api/workspaces/:workspaceId/leaderboard', leaderboardRoutes);
 app.use('/api/workspaces/:workspaceId/members', rolesRoutes);
 app.use('/api/workspaces/:workspaceId/hubspot', hubspotRoutes);
+app.use('/api/workspaces/:workspaceId/slack', slackRoutes);
+app.use('/api/workspaces/:workspaceId/calendar', calendarRoutes);
 app.use('/api/webhooks/sms', express.urlencoded({ extended: false }), smsWebhookRoutes);
 // Server-to-server bridge: WhatsApp bot → Connectly DB persistence
 app.use('/api/sandbox', sandboxBridgeRoutes);
