@@ -181,7 +181,7 @@ export default function ContactPanel({ conversation }: Props) {
   const isSnoozed = conversation.snoozedUntil && new Date(conversation.snoozedUntil) > new Date();
 
   return (
-    <div className="w-72 flex-shrink-0 border-l border-gray-100 bg-white overflow-y-auto">
+    <div className="hidden md:block w-72 flex-shrink-0 border-l border-gray-100 bg-white overflow-y-auto">
       {/* Contact info */}
       <div className="p-5 text-center border-b border-gray-100">
         <Avatar name={contact.name} size="xl" className="mx-auto mb-3" />

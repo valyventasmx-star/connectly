@@ -431,7 +431,7 @@ export default function ChatArea({ conversation, onBack }: Props) {
             </button>
             <button
               onClick={() => setShowPanel((v) => !v)}
-              className={`p-1.5 rounded-lg transition-colors ${showPanel ? 'bg-primary-50 text-primary-600' : 'text-gray-400 hover:bg-gray-100'}`}
+              className={`hidden md:flex p-1.5 rounded-lg transition-colors ${showPanel ? 'bg-primary-50 text-primary-600' : 'text-gray-400 hover:bg-gray-100'}`}
               title="Toggle contact panel">
               <InformationCircleIcon className="w-5 h-5" />
             </button>
