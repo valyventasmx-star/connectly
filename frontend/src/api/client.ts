@@ -280,6 +280,8 @@ export const aiApi = {
     api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/ai-suggestions`),
   summary: (workspaceId: string, conversationId: string) =>
     api.get(`/workspaces/${workspaceId}/conversations/${conversationId}/ai-summary`),
+  triage: (workspaceId: string) =>
+    api.post(`/workspaces/${workspaceId}/ai/triage`),
 };
 
 // Snooze

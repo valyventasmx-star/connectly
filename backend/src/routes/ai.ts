@@ -242,4 +242,70 @@ router.post('/score-quality', async (req: AuthRequest, res: Response) => {
   }
 });
 
+// ── AI Triage — rank open conversations by urgency ───────────────────────────
+router.post('/ai/triage', async (req: AuthRequest, res: Response) => {
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(400).json({ error: 'AI not configured' });
+
+  try {
+    // Fetch up to 25 open conversations with their last 3 messages
+    const convs = await prisma.conversation.findMany({
+      where: { workspaceId: req.params.workspaceId, status: 'open' },
+      include: {
+        contact: { select: { name: true } },
+        messages: { orderBy: { createdAt: 'desc' }, take: 3 },
+      },
+      orderBy: { lastMessageAt: 'desc' },
+      take: 25,
+    });
+
+    if (convs.length === 0) return res.json({ rankings: [] });
+
+    const items = convs.map(c => {
+      const waitMins = c.lastMessageAt
+        ? Math.floor((Date.now() - new Date(c.lastMessageAt).getTime()) / 60000)
+        : 0;
+      const lastMessages = c.messages
+        .reverse()
+        .map(m => `[${m.direction === 'inbound' ? c.contact.name : 'Agent'}]: ${m.content}`)
+        .join('\n');
+      return { id: c.id, contact: c.contact.name, waitingMinutes: waitMins, lastMessages };
+    });
+
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const response = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1200,
+      messages: [{
+        role: 'user',
+        content: `You are a customer support triage AI. Analyze these ${items.length} open conversations and assign each an urgency score.
+
+Urgency scale:
+1 = CRITICAL (angry customer, threat to cancel/leave, emergency)
+2 = HIGH (frustrated, waiting long, unresolved complaint)
+3 = MEDIUM (general question, normal follow-up)
+4 = LOW (simple question, already handled)
+5 = INFORMATIONAL (just checking in, positive feedback)
+
+Consider: emotional tone, waiting time, keywords like "cancel", "urgent", "refund", "angry", "help!", etc.
+
+Return ONLY a valid JSON array, nothing else:
+[{"id":"...","urgencyScore":1,"reason":"one short sentence why"}]
+
+Conversations:
+${JSON.stringify(items, null, 2)}`,
+      }],
+    });
+
+    const raw = (response.content[0] as any).text.trim();
+    const match = raw.match(/\[[\s\S]*\]/);
+    const rankings = match ? JSON.parse(match[0]) : [];
+
+    res.json({ rankings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 export default router;
