@@ -20,6 +20,7 @@ import {
   ShieldCheckIcon,
   CreditCardIcon,
   RectangleStackIcon,
+  XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useAuthStore } from '../../store/auth';
 import { useWorkspaceStore } from '../../store/workspace';
@@ -61,6 +62,7 @@ function SidebarIcon({
       <NavLink
         to={to}
         title={label}
+        onClick={onClick}
         className={({ isActive }) =>
           `sidebar-icon flex-shrink-0 ${isActive ? 'active' : ''}`
         }
@@ -76,28 +78,55 @@ function SidebarIcon({
   );
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  open?: boolean;
+  onClose?: () => void;
+}
+
+export default function Sidebar({ open = false, onClose }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const { isDark, toggleTheme } = useThemeStore();
   const navigate = useNavigate();
 
   const handleLogout = () => { logout(); navigate('/login'); };
   const openSearch  = () => {
+    onClose?.();
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }));
   };
 
+  // Close sidebar when navigating on mobile
+  const handleNavClick = () => onClose?.();
+
   return (
-    <div className="flex h-full">
+    <div
+      className={[
+        'flex h-full',
+        // Mobile: fixed overlay drawer
+        'fixed inset-y-0 left-0 z-40',
+        'transition-transform duration-300 ease-in-out',
+        open ? 'translate-x-0' : '-translate-x-full',
+        // Desktop: static, always visible
+        'md:relative md:inset-auto md:z-auto md:translate-x-0',
+      ].join(' ')}
+    >
       {/* ── Icon rail ── */}
       <div
         className="w-16 bg-sidebar-bg flex flex-col items-center border-r border-sidebar-border flex-shrink-0"
         style={{ minHeight: 0, height: '100%' }}
       >
-        {/* Logo */}
-        <div className="flex-shrink-0 pt-3 pb-1">
+        {/* Logo + mobile close button */}
+        <div className="flex-shrink-0 pt-3 pb-1 flex flex-col items-center gap-1">
           <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
             <ChatBubbleLeftRightIcon className="w-6 h-6 text-white" />
           </div>
+          {/* Close button — only shows on mobile */}
+          <button
+            onClick={onClose}
+            className="md:hidden sidebar-icon"
+            title="Close menu"
+          >
+            <XMarkIcon className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Search */}
@@ -116,7 +145,7 @@ export default function Sidebar() {
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {primaryNav.map(({ to, icon: Icon, label }) => (
-            <SidebarIcon key={to} to={to} label={label}>
+            <SidebarIcon key={to} to={to} label={label} onClick={handleNavClick}>
               <Icon className="w-5 h-5" />
             </SidebarIcon>
           ))}
@@ -125,6 +154,7 @@ export default function Sidebar() {
             <NavLink
               to="/admin"
               title="Admin Panel"
+              onClick={handleNavClick}
               className={({ isActive }) =>
                 `sidebar-icon flex-shrink-0 relative ${isActive ? 'active' : ''}`
               }
@@ -146,7 +176,7 @@ export default function Sidebar() {
             {isDark ? <SunIcon className="w-5 h-5" /> : <MoonIcon className="w-5 h-5" />}
           </SidebarIcon>
 
-          <SidebarIcon to="/settings" label="Settings">
+          <SidebarIcon to="/settings" label="Settings" onClick={handleNavClick}>
             <Cog6ToothIcon className="w-5 h-5" />
           </SidebarIcon>
 

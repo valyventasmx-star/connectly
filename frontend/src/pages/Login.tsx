@@ -116,11 +116,6 @@ export default function Login() {
             </Link>
           </p>
 
-          <div className="mt-6 p-4 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
-            <strong>Demo credentials:</strong><br />
-            Email: admin@connectly.app<br />
-            Password: admin123
-          </div>
         </div>
       </div>
     </div>
