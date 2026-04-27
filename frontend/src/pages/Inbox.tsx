@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AppLayout from '../components/Layout/AppLayout';
 import ConversationList from '../components/Chat/ConversationList';
 import ChatArea from '../components/Chat/ChatArea';
@@ -12,6 +12,13 @@ import EmptyState from '../components/ui/EmptyState';
 export default function Inbox() {
   const { activeConversation, currentWorkspace } = useWorkspaceStore();
   const [showNewConv, setShowNewConv] = useState(false);
+  // Mobile: 'list' shows the conversation list, 'chat' shows the active conversation
+  const [mobilePanel, setMobilePanel] = useState<'list' | 'chat'>('list');
+
+  // When a conversation becomes active, slide to the chat panel on mobile
+  useEffect(() => {
+    if (activeConversation) setMobilePanel('chat');
+  }, [activeConversation?.id]);
   const [channels, setChannels] = useState<any[]>([]);
   const [contacts, setContacts] = useState<any[]>([]);
   const [selectedChannel, setSelectedChannel] = useState('');
@@ -52,11 +59,29 @@ export default function Inbox() {
 
   return (
     <AppLayout>
-      <div className="flex flex-1 overflow-hidden">
-        <ConversationList onNewConversation={openNewConv} />
-        <div className="flex-1 overflow-hidden flex">
+      {/* Outer container: on mobile, only one panel visible at a time */}
+      <div className="flex flex-1 overflow-hidden relative">
+
+        {/* Conversation list — full-width on mobile, fixed sidebar on desktop */}
+        <div className={`
+          flex-shrink-0 w-full md:w-80 flex flex-col overflow-hidden
+          ${mobilePanel === 'list' ? 'flex' : 'hidden'}
+          md:flex
+        `}>
+          <ConversationList onNewConversation={openNewConv} />
+        </div>
+
+        {/* Chat area — takes remaining space; on mobile, shown only when a convo is active */}
+        <div className={`
+          flex-1 overflow-hidden flex
+          ${mobilePanel === 'chat' ? 'flex' : 'hidden'}
+          md:flex
+        `}>
           {activeConversation ? (
-            <ChatArea conversation={activeConversation} />
+            <ChatArea
+              conversation={activeConversation}
+              onBack={() => setMobilePanel('list')}
+            />
           ) : (
             <div className="flex-1 flex items-center justify-center bg-gray-50">
               <EmptyState

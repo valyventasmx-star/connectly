@@ -8,14 +8,15 @@ import ChatInput from './ChatInput';
 import ContactPanel from './ContactPanel';
 import Avatar from '../ui/Avatar';
 import Badge from '../ui/Badge';
-import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon, SparklesIcon, DocumentTextIcon, MoonIcon, ClockIcon, XMarkIcon, ArrowsRightLeftIcon, LanguageIcon, CurrencyDollarIcon } from '@heroicons/react/24/outline';
+import { InformationCircleIcon, StarIcon, ArrowDownTrayIcon, SparklesIcon, DocumentTextIcon, MoonIcon, ClockIcon, XMarkIcon, ArrowsRightLeftIcon, LanguageIcon, CurrencyDollarIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts';
 
 interface Props {
   conversation: Conversation;
+  onBack?: () => void;
 }
 
-export default function ChatArea({ conversation }: Props) {
+export default function ChatArea({ conversation, onBack }: Props) {
   const { currentWorkspace } = useWorkspaceStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
@@ -348,6 +349,15 @@ export default function ChatArea({ conversation }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-3 bg-white border-b border-gray-100 flex-shrink-0">
           <div className="flex items-center gap-3">
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="md:hidden p-1.5 -ml-1 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors flex-shrink-0"
+                aria-label="Back to conversations"
+              >
+                <ChevronLeftIcon className="w-5 h-5" />
+              </button>
+            )}
             <Avatar name={conversation.contact.name} size="md" />
             <div>
               <h3 className="text-sm font-semibold text-gray-900">{conversation.contact.name}</h3>

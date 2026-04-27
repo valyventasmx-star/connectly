@@ -162,7 +162,7 @@ export default function ConversationList({ onNewConversation }: Props) {
     : filtered;
 
   return (
-    <div className="w-80 flex flex-col border-r border-gray-100 bg-white flex-shrink-0">
+    <div className="w-full md:w-80 flex flex-col border-r border-gray-100 bg-white flex-shrink-0">
       {/* Header */}
       <div className="px-4 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between mb-3">
